@@ -99,7 +99,7 @@ DEFAULTS: dict[str, Any] = {
         "port": 1883,
         "username": "",
         "password": "",
-        "root_topic": "msh/EU_868/2/e/",
+        "root_topic": "msh/EU_868",
     },
     "meshtastic": {
         "channels": default_channels(),
@@ -166,6 +166,18 @@ def normalize_ui(ui: dict[str, Any]) -> dict[str, Any]:
     return ui
 
 
+def normalize_root_topic(raw: str) -> str:
+    """Topic racine MQTT — réseau Gaulix : msh/EU_868 (crossband, sans /2/e/)."""
+    root = str(raw or DEFAULTS["mqtt"]["root_topic"]).strip()
+    # Ancien format Meshtastic public (msh/EU_868/2/e/ ou msh/EU/433/2/e/) → Gaulix
+    if "/2/e" in root:
+        root = root.split("/2/e")[0]
+    if root.startswith("msh/EU/433"):
+        root = "msh/EU_868"
+    root = root.rstrip("/")
+    return f"{root}/" if root else "msh/EU_868/"
+
+
 def normalize_mqtt(mqtt: dict[str, Any]) -> dict[str, Any]:
     """Normalise la config MQTT ; migre l'ancien broker public Meshtastic."""
     mqtt = deepcopy(mqtt)
@@ -173,10 +185,7 @@ def normalize_mqtt(mqtt: dict[str, Any]) -> dict[str, Any]:
         mqtt["broker"] = DEFAULTS["mqtt"]["broker"]
         mqtt["username"] = ""
         mqtt["password"] = ""
-    root = str(mqtt.get("root_topic", DEFAULTS["mqtt"]["root_topic"])).strip()
-    if root and not root.endswith("/"):
-        root = f"{root}/"
-    mqtt["root_topic"] = root or DEFAULTS["mqtt"]["root_topic"]
+    mqtt["root_topic"] = normalize_root_topic(mqtt.get("root_topic", ""))
     return mqtt
 
 

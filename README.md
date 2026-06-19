@@ -26,7 +26,7 @@
 |---|---|
 | **Quoi** | Poste de commandement web pour réseau mesh Meshtastic |
 | **Comment** | Pont MQTT protobuf (8 canaux, chiffrement PSK) |
-| **Pour qui** | Secours, pompiers, gestion de crise (ex. Loire — Info Routes 42) |
+| **Pour qui** | Secours, pompiers, gestion de crise |
 | **Où** | [http://127.0.0.1:8080](http://127.0.0.1:8080) en local |
 
 ---
@@ -66,13 +66,31 @@ flowchart TB
 ├────────────────────────────┼────────────────────────────────────┤
 │  Broker : 127.0.0.1        │  Broker : IP LAN du PC             │
 │  Port   : 1883             │  Port   : 1883                     │
-│  Topic  : msh/EU_868/2/e/  │  Topic  : identique                │
+│  Topic  : msh/EU_868       │  Topic  : identique (Gaulix)       │
 │  Auth   : (vide)           │  Auth   : (vide)                   │
 └────────────────────────────┴────────────────────────────────────┘
          ⚠️  Ne pas mettre 127.0.0.1 sur la radio — c'est elle-même !
 ```
 
 Guide détaillé : [docs/mqtt-gateway.md](docs/mqtt-gateway.md)
+
+### Root topic — réseau Gaulix
+
+| Paramètre | Valeur |
+|-----------|--------|
+| **Root topic** | **`msh/EU_868`** |
+| **Bande** | **Même topic** en 433 ou 868 MHz (crossband via le serveur MQTT) |
+
+Laisser la valeur par défaut côté radio si elle propose déjà `msh/EU_868`. **Identique** sur MeshQTT, la gateway et tout client du même mesh.
+
+Exemples de topics :
+
+- Abonnement : `msh/EU_868/Fr_Balise/#`
+- Publication : `msh/EU_868/Fr_Balise/!a1b2c3d4`
+
+> Ne pas confondre avec le broker public Meshtastic (`msh/EU_868/2/e/`…) — format différent. Les anciens topics (`msh/EU_868/2/e/`, `msh/EU/433/2/e/`) sont migrés automatiquement vers `msh/EU_868/` à l'enregistrement.
+
+Détail des paramètres : [docs/configuration.md](docs/configuration.md)
 
 ---
 
@@ -112,7 +130,7 @@ sequenceDiagram
     U->>W: Saisie message + Envoyer
     W->>F: POST /api/send
     F->>M: Publish protobuf
-    M->>R: Topic msh/.../Canal/!node
+    M->>R: Topic msh/EU_868/Canal/!node
     R->>L: Émission LoRa
     L->>R: Réponse mesh
     R->>M: Publish
@@ -161,7 +179,7 @@ Détails : [docs/origines.md](docs/origines.md)
 
 | Domaine | Description |
 |---------|-------------|
-| **MQTT** | Broker local ou distant, abonnement multi-canaux |
+| **MQTT** | Broker local ou distant, root topic Gaulix `msh/EU_868`, multi-canaux |
 | **Messages** | Fil WebSocket, déchiffrement PSK |
 | **Nœuds** | Liste des nœuds visibles sur le mesh |
 | **Canaux** | 8 slots, rôles PRINCIPAL / SECONDAIRE / DESACTIVE |
@@ -206,7 +224,7 @@ docker compose up -d
 
 ```
   [ ] Mosquitto actif     →  docker ps --filter name=meshqtt-mosquitto
-  [ ] MQTT configuré      →  127.0.0.1:1883 + root topic (ex. msh/EU_868/2/e/)
+  [ ] MQTT configuré      →  127.0.0.1:1883 + root topic Gaulix : msh/EU_868
   [ ] Canaux Meshtastic   →  noms + clés PSK alignés avec la radio
   [ ] Connecter           →  bouton en haut à droite
   [ ] Radio gateway       →  module MQTT vers IP LAN du PC

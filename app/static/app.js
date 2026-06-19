@@ -135,7 +135,7 @@ const DEFAULT_SETTINGS = {
     port: 1883,
     username: "",
     password: "",
-    root_topic: "msh/EU_868/2/e/",
+    root_topic: "msh/EU_868",
   },
   meshtastic: {
     channels: [
@@ -228,8 +228,14 @@ function bindMeshMessageInput(inputEl, countEl) {
 function normalizeRootTopic(raw) {
   let topic = String(raw || "").trim();
   if (!topic) return DEFAULT_SETTINGS.mqtt.root_topic;
-  if (!topic.endsWith("/")) topic += "/";
-  return topic;
+  if (topic.includes("/2/e")) {
+    topic = topic.split("/2/e")[0];
+  }
+  if (topic.startsWith("msh/EU/433")) {
+    topic = "msh/EU_868";
+  }
+  topic = topic.replace(/\/+$/, "");
+  return `${topic}/`;
 }
 
 function refreshSettingsFromStorage() {

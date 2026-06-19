@@ -40,7 +40,7 @@ Dans l’application Meshtastic ou via CLI : **Module config → MQTT**.
 | **Adresse (Address)** | IP **LAN** du PC qui héberge Mosquitto (ex. `192.168.1.74`) |
 | **Port** | `1883` |
 | **Utilisateur / mot de passe** | Laisser **vide** |
-| **Root topic** | Identique à MeshQTT (ex. `msh/EU_868/2/e/`) |
+| **Root topic** | Identique à MeshQTT : **`msh/EU_868`** (réseau Gaulix, crossband) |
 | **Chiffrement MQTT** | **Activé** (recommandé ; MeshQTT déchiffre avec les clés de canal) |
 
 > **Important** : ne pas mettre `127.0.0.1` sur la radio — « localhost » désigne la radio elle-même, pas votre PC.
@@ -64,7 +64,7 @@ Menu **MQTT** (ou `data/settings.json`) :
 | Broker | `127.0.0.1` (correct depuis le PC) |
 | Port | `1883` |
 | Username / Password | vides |
-| Root topic | `msh/EU_868/2/e/` (ou celui de votre région / bande) |
+| Root topic | `msh/EU_868` |
 
 Exemple actuel (`data/settings.json`) :
 
@@ -75,26 +75,28 @@ Exemple actuel (`data/settings.json`) :
     "port": 1883,
     "username": "",
     "password": "",
-    "root_topic": "msh/EU_868/2/e/"
+    "root_topic": "msh/EU_868"
   }
 }
 ```
 
-## Root topic — choisir la bonne valeur
+## Root topic — réseau Gaulix
 
-Le root topic doit correspondre à votre **région LoRa** et **bande** :
+Le réseau **Gaulix** préconise :
 
-| Exemple | Usage |
-|---------|--------|
-| `msh/EU_868/2/e/` | Europe, bande 868 MHz |
-| `msh/EU/433/2/e/` | Europe, bande 433 MHz |
+| Paramètre | Valeur |
+|-----------|--------|
+| Root topic | **`msh/EU_868`** |
+| Bande | **Même topic** que le nœud soit en 433 ou 868 MHz (crossband via MQTT) |
 
-**Identique** sur la radio, dans MeshQTT et sur toute autre gateway du même mesh.
+Laisser la valeur par défaut côté radio si elle propose déjà `msh/EU_868`.
 
-Topics Meshtastic :
+Topics Meshtastic sur Gaulix :
 
-- Abonnement gateway : `{root_topic}{nom_canal}/#`
-- Publication : `{root_topic}{nom_canal}/{node_id}`
+- Abonnement gateway : `msh/EU_868/{nom_canal}/#`
+- Publication : `msh/EU_868/{nom_canal}/{node_id}`
+
+> Ne pas confondre avec le broker public Meshtastic (`msh/EU_868/2/e/`…) — format différent.
 
 ## Canaux et clés — alignement obligatoire
 

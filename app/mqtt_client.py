@@ -53,7 +53,7 @@ class MqttConfig:
     port: int = 1883
     username: str = ""
     password: str = ""
-    root_topic: str = "msh/EU_868/2/e/"
+    root_topic: str = "msh/EU_868"
     channels: list[ChannelConfig] = field(default_factory=lambda: [
         channel_slot_to_config(default_channel_slot(i)) for i in range(CHANNEL_COUNT)
     ])

@@ -18,16 +18,18 @@ Au démarrage : si **localStorage** est vide, l’interface charge `data/setting
 | Broker | `127.0.0.1` | Adresse du broker |
 | Port | `1883` | `8883` si TLS |
 | Username / Password | (vide en local) | Auth broker si configurée |
-| Root topic | `msh/EU_868/2/e/` | Préfixe des topics Meshtastic |
+| Root topic | `msh/EU_868` | Préfixe des topics Meshtastic (réseau **Gaulix**, crossband) |
 
-Le root topic doit correspondre à votre région / bande (ex. `msh/EU/433/2/e/`).
+Le root topic **Gaulix** est `msh/EU_868` — **identique quelle que soit la bande** du nœud (433 ou 868 MHz) : le crossband est assuré par le serveur MQTT. Ne pas utiliser le suffixe `/2/e/` du broker public Meshtastic.
+
+Exemples de topics complets :
+
+- Abonnement : `msh/EU_868/Fr_Balise/#`
+- Publication : `msh/EU_868/Fr_Balise/!a1b2c3d4`
+
+Ancien format `msh/EU_868/2/e/` ou `msh/EU/433/2/e/` : migré automatiquement vers `msh/EU_868/` à l'enregistrement.
 
 Guide pas à pas pour une **radio gateway** : [mqtt-gateway.md](mqtt-gateway.md).
-
-Topics utilisés :
-
-- Abonnement : `{root_topic}{nom_canal}/#`
-- Publication : `{root_topic}{nom_canal}/{node_id}`
 
 ## Meshtastic — 8 canaux (indices 0–7)
 
