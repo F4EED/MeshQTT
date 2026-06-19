@@ -1,0 +1,282 @@
+{
+  "categories": [
+    {
+      "id": "pompier",
+      "label": "Pompier"
+    },
+    {
+      "id": "secouriste",
+      "label": "Secouriste"
+    },
+    {
+      "id": "crise",
+      "label": "Gestion de crise"
+    },
+    {
+      "id": "communautaire",
+      "label": "Communautaire"
+    }
+  ],
+  "presets": {
+    "pompier": [
+      {
+        "text": "Feu confirmé — renfort demandé",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      },
+      {
+        "text": "Intervention terminée",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      },
+      {
+        "text": "PARTI",
+        "channel": 0,
+        "visu": "PARTI",
+        "option": false
+      },
+      {
+        "text": "SUR LES LIEUX",
+        "channel": 0,
+        "visu": "SUR LES LIEUX",
+        "option": false
+      },
+      {
+        "text": "DEPART HOPITAL",
+        "channel": 0,
+        "visu": "DEPART HOPITAL",
+        "option": false
+      },
+      {
+        "text": "ARRIVEE HOPITAL",
+        "channel": 0,
+        "visu": "ARRIVEE HOPITAL",
+        "option": false
+      },
+      {
+        "text": "DISPONIBLE",
+        "channel": 0,
+        "visu": "DISPONIBLE",
+        "option": false
+      },
+      {
+        "text": "RENTRE",
+        "channel": 0,
+        "visu": "RENTRE",
+        "option": false
+      },
+      {
+        "text": "SMUR SSL",
+        "channel": 0,
+        "visu": "SMUR SLL",
+        "option": false
+      },
+      {
+        "text": "DISPO HORS SECTEUR",
+        "channel": 0,
+        "visu": "DISPO HORS SECTEUR",
+        "option": false
+      },
+      {
+        "text": "POLICE SSL",
+        "channel": 0,
+        "visu": "POLICE SSL",
+        "option": false
+      },
+      {
+        "text": "GENDARMERIE SSL",
+        "channel": 0,
+        "visu": "GENDARMERIE SSL",
+        "option": false
+      },
+      {
+        "text": "EDF SSL",
+        "channel": 0,
+        "visu": "EDF SSL",
+        "option": false
+      },
+      {
+        "text": "GDF SSL",
+        "channel": 0,
+        "visu": "GDF SSL",
+        "option": false
+      },
+      {
+        "text": "DDE SSL",
+        "channel": 0,
+        "visu": "DDE SSL",
+        "option": false
+      },
+      {
+        "text": "CG SSL",
+        "channel": 0,
+        "visu": "CG SSL",
+        "option": false
+      },
+      {
+        "text": "POLICE MUNI SSL",
+        "channel": 0,
+        "visu": "POLICE MUNI SSL",
+        "option": false
+      },
+      {
+        "text": "BRIG. VERTE SSSL",
+        "channel": 0,
+        "visu": "BRIG. VERTE SSSL",
+        "option": false
+      },
+      {
+        "text": "MAIRE SSL",
+        "channel": 0,
+        "visu": "MAIRE SSL",
+        "option": false
+      }
+    ],
+    "secouriste": [
+      {
+        "text": "Premiers secours en cours",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      },
+      {
+        "text": "Victime stabilisée",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      },
+      {
+        "text": "ÉCHO AU DÉPART",
+        "channel": 0,
+        "visu": "ÉCHO AU DÉPART",
+        "option": false
+      },
+      {
+        "text": "TRANSMISSION BILAN CRRA",
+        "channel": 0,
+        "visu": "TRANSMISSION BILAN CRRA",
+        "option": false
+      },
+      {
+        "text": "DEMANDE AVIS MED",
+        "channel": 0,
+        "visu": "DEMANDE AVIS MED,",
+        "option": false
+      },
+      {
+        "text": "SLL",
+        "channel": 0,
+        "visu": "SLL",
+        "option": false
+      },
+      {
+        "text": "DEMANDE DE PAROLE",
+        "channel": 0,
+        "visu": "DEMANDE DE PAROLE",
+        "option": false
+      },
+      {
+        "text": "VICTIME DCD",
+        "channel": 0,
+        "visu": "VICTIME DCD",
+        "option": false
+      },
+      {
+        "text": "DEMANDE DE RENFORT",
+        "channel": 0,
+        "visu": "DEMANDE DE RENFORT",
+        "option": false
+      },
+      {
+        "text": "BRAVO AU DÉPART",
+        "channel": 0,
+        "visu": "BRAVO AU DÉPART",
+        "option": false
+      },
+      {
+        "text": "EVASAN AU DÉPART",
+        "channel": 0,
+        "visu": "EVASAN AU DÉPART",
+        "option": false
+      },
+      {
+        "text": "EVASAN SSL",
+        "channel": 0,
+        "visu": "EVASAN SSL",
+        "option": false
+      },
+      {
+        "text": "EVASAN TRANSPORT HÔPITAL",
+        "channel": 0,
+        "visu": "EVASAN TRANSPORT HÔPITAL",
+        "option": false
+      },
+      {
+        "text": "EVASAN RETOUR INDISPONIBLE",
+        "channel": 0,
+        "visu": "EVASAN RETOUR INDISPONIBLE",
+        "option": false
+      },
+      {
+        "text": "EVASAN RETOUR DISPONIBLE",
+        "channel": 0,
+        "visu": "EVASAN RETOUR INDISPONIBLE",
+        "option": false
+      },
+      {
+        "text": "EVASAN DISPONIBLE",
+        "channel": 0,
+        "visu": "EVASAN RETOUR INDISPONIBLE",
+        "option": false
+      }
+    ],
+    "crise": [
+      {
+        "text": "Cellule de crise activée",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      },
+      {
+        "text": "Point de situation H+1",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      }
+    ],
+    "communautaire": [
+      {
+        "text": "Hello from MeshQTT!",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      },
+      {
+        "text": "Test ping mesh",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      },
+      {
+        "text": "73",
+        "channel": 0,
+        "visu": "",
+        "option": false
+      },
+      {
+        "text": "Salut tout le monde",
+        "channel": 0,
+        "visu": "SALUT TLM",
+        "option": false
+      },
+      {
+        "text": "Byebye et a bientôt",
+        "channel": 0,
+        "visu": "BYE BYE",
+        "option": false
+      }
+    ]
+  }
+}

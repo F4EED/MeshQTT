@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MeshQTT — Client Meshtastic Web</title>
+  <script>
+    (function () {
+      try {
+        var raw = localStorage.getItem("meshqtt-settings");
+        if (!raw) return;
+        var s = JSON.parse(raw);
+        var t = s.ui && s.ui.theme;
+        if (t !== "light" && t !== "dark") {
+          t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/style.css?v=20250620" />
+</head>
+<body>
+  <header class="top-bar">
+    <div class="brand">
+      <h1>MeshQTT</h1>
+      <p class="subtitle">Client Meshtastic pour gestion de crise — broker MQTT</p>
+    </div>
+    <div class="header-actions">
+      <div id="status-bar" class="status disconnected">Déconnecté</div>
+      <label class="inforoute-toggle" title="Afficher la zone Remontée Info Routes 42 sur la page principale">
+        <input type="checkbox" id="inforoute-enabled-toggle" checked />
+        <span>Info Routes 42</span>
+      </label>
+      <button type="button" id="map-btn" class="btn" title="Ouvrir la carte (Info Routes si activé)">Carte</button>
+      <button type="button" id="theme-btn" class="btn icon-btn" title="Thème : Nuit" aria-label="Basculer jour / nuit">☾</button>
+      <button type="button" id="mqtt-settings-btn" class="btn">MQTT</button>
+      <button type="button" id="mesh-settings-btn" class="btn">Meshtastic</button>
+      <button type="button" id="connect-btn" class="btn primary">Connecter</button>
+      <button type="button" id="disconnect-btn" class="btn" disabled>Déconnecter</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel presets-panel">
+      <div class="presets-panel-head">
+        <h2>Messages prédéfinis</h2>
+        <button type="button" id="preset-new-btn" class="btn primary preset-new-btn">+ Nouveau</button>
+      </div>
+      <div id="presets-list" class="presets-accordion"></div>
+      <div class="presets-panel-footer">
+        <button type="button" id="preset-bake-btn" class="btn" title="Enregistrer vos messages dans l'application (data/presets.json)">Intégrer dans l'app</button>
+        <button type="button" id="preset-cat-add-btn" class="btn">+ Ajouter</button>
+        <button type="button" id="preset-cat-edit-btn" class="btn">Modifier</button>
+        <button type="button" id="preset-cat-del-btn" class="btn">Supprimer</button>
+      </div>
+      <div id="preset-cat-delete-bar" class="preset-cat-delete-bar" hidden>
+        <label class="preset-cat-delete-label">
+          Rubrique à supprimer
+          <select id="preset-cat-delete-select"></select>
+        </label>
+        <div class="preset-cat-delete-actions">
+          <button type="button" id="preset-cat-delete-confirm" class="btn danger">Supprimer</button>
+          <button type="button" id="preset-cat-delete-cancel" class="btn">Annuler</button>
+        </div>
+        <p id="preset-cat-delete-hint" class="hint"></p>
+      </div>
+    </aside>
+
+    <div class="center-column">
+      <section class="panel messages-panel">
+        <h2>Messages</h2>
+        <div id="messages" class="messages" aria-live="polite"></div>
+      </section>
+
+      <section class="panel keyboard-panel">
+        <h2>Message au clavier</h2>
+
+        <div class="keyboard-stack">
+          <form id="send-group-form" class="keyboard-row-form">
+            <div class="keyboard-type">
+              <span class="keyboard-badge keyboard-badge-group">Groupe</span>
+              <span class="keyboard-type-sub">Broadcast</span>
+            </div>
+            <label class="keyboard-cell keyboard-cell-select">
+              <span class="keyboard-field-label">Canal</span>
+              <select id="send-channel" title="Canal d'envoi" disabled></select>
+            </label>
+            <label class="keyboard-cell keyboard-cell-message">
+              <span class="keyboard-field-label">Message</span>
+              <input id="group-message-input" type="text" placeholder="Texte envoyé à tous sur ce canal…" disabled />
+            </label>
+            <div class="keyboard-cell keyboard-cell-action">
+              <span class="keyboard-field-label keyboard-field-label-spacer" aria-hidden="true">&nbsp;</span>
+              <button type="submit" class="btn primary keyboard-send-btn" disabled id="send-group-btn">Envoyer</button>
+            </div>
+            <span class="hint mesh-msg-count keyboard-cell-count">
+              <span id="group-message-char-count">0</span> / 200 octets UTF-8
+            </span>
+          </form>
+
+          <form id="send-direct-form" class="keyboard-row-form">
+            <div class="keyboard-type">
+              <span class="keyboard-badge keyboard-badge-direct">Direct</span>
+              <span class="keyboard-type-sub">Canal 0</span>
+            </div>
+            <label class="keyboard-cell keyboard-cell-select">
+              <span class="keyboard-field-label">Nœud</span>
+              <select id="direct-destination" title="Destinataire" disabled>
+                <option value="">Choisir…</option>
+              </select>
+            </label>
+            <label class="keyboard-cell keyboard-cell-message">
+              <span class="keyboard-field-label">Message</span>
+              <input id="direct-message-input" type="text" placeholder="Texte privé au nœud sélectionné…" disabled />
+            </label>
+            <div class="keyboard-cell keyboard-cell-action">
+              <span class="keyboard-field-label keyboard-field-label-spacer" aria-hidden="true">&nbsp;</span>
+              <button type="submit" class="btn primary keyboard-send-btn" disabled id="send-direct-btn">Envoyer</button>
+            </div>
+            <span class="hint mesh-msg-count keyboard-cell-count">
+              <span id="direct-message-char-count">0</span> / 200 octets UTF-8
+            </span>
+          </form>
+        </div>
+
+        <p class="hint keyboard-footnote">Cliquez un nœud dans la colonne de droite pour le sélectionner comme destinataire.</p>
+      </section>
+
+      <section id="inforoute-panel" class="panel inforoute-panel external-zone" aria-labelledby="inforoute-title">
+        <div class="inforoute-head">
+          <h2 id="inforoute-title">Remontée Info Routes 42</h2>
+          <span class="external-badge" title="Seule zone nécessitant Internet">Internet</span>
+        </div>
+        <p class="hint inforoute-intro">
+          Bulletin officiel du Conseil départemental de la Loire, comme sur
+          <a href="https://www.inforoute42.fr/" target="_blank" rel="noopener noreferrer">inforoute42.fr</a>.
+          Seule cette zone nécessite Internet ; le reste de MeshQTT reste local.
+          Actualisation automatique toutes les 30&nbsp;min (bouton Actualiser pour forcer).
+          <strong>Clic</strong> sur le signalement : texte → <strong>D_Ligerien</strong> ;
+          <strong>Ctrl+clic</strong> : repère → <strong>canal&nbsp;0</strong>.
+          Boutons équivalents sous chaque signalement.
+        </p>
+        <div class="inforoute-toolbar">
+          <button type="button" id="inforoute-refresh-btn" class="btn primary">Actualiser</button>
+          <span id="inforoute-status" class="inforoute-status">Chargement initial…</span>
+        </div>
+        <div id="inforoute-content" class="inforoute-content" aria-live="polite">
+          <p class="inforoute-placeholder">Aucune donnée chargée.</p>
+        </div>
+        <div class="inforoute-relay">
+          <label class="inforoute-relay-channel">
+            <span class="keyboard-field-label">Canal mesh</span>
+            <select id="inforoute-channel" disabled></select>
+          </label>
+          <label class="inforoute-relay-message">
+            <span class="keyboard-field-label">Remontée mesh</span>
+            <textarea id="inforoute-mesh-text" rows="3" placeholder="Résumé généré après actualisation…" disabled></textarea>
+            <span class="hint mesh-msg-count"><span id="inforoute-mesh-char-count">0</span> / 200 octets UTF-8</span>
+          </label>
+          <button type="button" id="inforoute-relay-btn" class="btn primary inforoute-relay-btn" disabled>
+            Remonter sur le mesh
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <aside class="panel nodes-panel">
+      <h2>Nœuds (<span id="node-count">0</span>)</h2>
+      <ul id="nodes-list"></ul>
+    </aside>
+  </main>
+
+  <!-- Modale MQTT -->
+  <dialog id="mqtt-modal" class="modal">
+    <form id="mqtt-form" novalidate>
+      <header class="modal-header">
+        <h2>Configuration MQTT</h2>
+        <button type="button" class="btn icon-btn modal-close" data-close="mqtt-modal" aria-label="Fermer">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>
+          Broker
+          <input name="broker" required />
+        </label>
+        <label>
+          Port
+          <input name="port" type="number" min="1" max="65535" required />
+        </label>
+        <label>
+          Utilisateur
+          <input name="username" autocomplete="username" />
+        </label>
+        <label>
+          Mot de passe
+          <input name="password" type="password" autocomplete="current-password" />
+        </label>
+        <label>
+          Root topic
+          <input name="root_topic" required placeholder="msh/EU_868/2/e/" />
+          <span class="hint">Doit correspondre au topic publié par votre passerelle / nœud MQTT</span>
+        </label>
+      </div>
+      <footer class="modal-footer">
+        <button type="button" class="btn modal-close" data-close="mqtt-modal">Annuler</button>
+        <button type="submit" id="mqtt-submit-btn" class="btn primary">Enregistrer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Modale Meshtastic -->
+  <dialog id="mesh-modal" class="modal modal-wide">
+    <form id="mesh-form" method="dialog">
+      <header class="modal-header">
+        <h2>Configuration Meshtastic</h2>
+        <button type="button" class="btn icon-btn modal-close" data-close="mesh-modal" aria-label="Fermer">✕</button>
+      </header>
+      <div class="modal-body">
+        <fieldset class="identity-fieldset">
+          <legend>Identité du nœud</legend>
+          <div class="field-row">
+            <label>
+              Nom court (4 car. max)
+              <input name="short_name" maxlength="4" required />
+            </label>
+            <label>
+              Nom long
+              <input name="long_name" required />
+            </label>
+          </div>
+          <label>
+            ID nœud
+            <span class="input-row">
+              <input name="node_id" id="node-id-input" placeholder="Proposition automatique si vide" />
+              <button type="button" id="propose-node-id-btn" class="btn">Proposer</button>
+            </span>
+            <span class="hint">Format : !a1b2c3d4 — proposé à l'ouverture, enregistré localement au clic sur Enregistrer</span>
+          </label>
+        </fieldset>
+
+        <fieldset class="channels-fieldset">
+          <legend>Canaux (0–7)</legend>
+          <p class="hint">Comme sur un appareil Meshtastic : 8 emplacements (0–7). Rôle <strong>PRINCIPAL</strong> ou <strong>SECONDAIRE</strong> = actif sur MQTT ; <strong>DESACTIVE</strong> = ignoré.</p>
+          <div class="channel-tabs" id="channel-tabs" role="tablist"></div>
+          <div id="channel-panels"></div>
+          <label class="active-channel-label">
+            Canal d'envoi par défaut
+            <select name="active_channel" id="active-channel-select"></select>
+          </label>
+        </fieldset>
+      </div>
+      <footer class="modal-footer">
+        <button type="button" class="btn modal-close" data-close="mesh-modal">Annuler</button>
+        <button type="submit" class="btn primary">Enregistrer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Modale message prédéfini -->
+  <dialog id="preset-modal" class="modal">
+    <form id="preset-form" method="dialog">
+      <header class="modal-header">
+        <h2 id="preset-modal-title">Nouveau message</h2>
+        <button type="button" class="btn icon-btn modal-close" data-close="preset-modal" aria-label="Fermer">✕</button>
+      </header>
+      <div class="modal-body">
+        <label>
+          Rubrique
+          <select id="preset-category" required></select>
+        </label>
+        <label>
+          Canal d'envoi par défaut
+          <select id="preset-channel-select" required></select>
+          <span class="hint">Canal Meshtastic (0–7) utilisé lors de l'envoi de ce message</span>
+        </label>
+        <label>
+          Visu
+          <input id="preset-visu-input" maxlength="80" placeholder="Libellé affiché dans la liste (optionnel)" />
+          <span class="hint">Nom court dans le panneau ; le message complet est envoyé au clic</span>
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="preset-option-input" />
+          Option — ouvrir le message type pour y ajouter du texte avant l'envoi
+        </label>
+        <label>
+          Message
+          <textarea id="preset-input" rows="5" placeholder="Saisissez votre message…" required></textarea>
+          <span class="hint mesh-msg-count"><span id="preset-char-count">0</span> / 200 octets UTF-8</span>
+        </label>
+      </div>
+      <footer class="modal-footer">
+        <button type="button" class="btn modal-close" data-close="preset-modal">Annuler</button>
+        <button type="submit" class="btn primary">Enregistrer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Modale envoi message prédéfini (option) -->
+  <dialog id="preset-send-modal" class="modal">
+    <form id="preset-send-form" method="dialog">
+      <header class="modal-header">
+        <h2 id="preset-send-modal-title">Compléter le message</h2>
+        <button type="button" class="btn icon-btn modal-close" data-close="preset-send-modal" aria-label="Fermer">✕</button>
+      </header>
+      <div class="modal-body">
+        <p id="preset-send-channel-hint" class="hint"></p>
+        <label>
+          Message à envoyer
+          <textarea id="preset-send-input" rows="6" required></textarea>
+          <span class="hint mesh-msg-count"><span id="preset-send-char-count">0</span> / 200 octets UTF-8 — modifiez ou complétez le texte type</span>
+        </label>
+      </div>
+      <footer class="modal-footer">
+        <button type="button" class="btn modal-close" data-close="preset-send-modal">Annuler</button>
+        <button type="submit" class="btn primary">Envoyer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Modale rubriques prédéfinies -->
+  <dialog id="preset-cat-modal" class="modal">
+    <form id="preset-cat-form" novalidate>
+      <header class="modal-header">
+        <h2 id="preset-cat-modal-title">Rubrique</h2>
+        <button type="button" class="btn icon-btn modal-close" data-close="preset-cat-modal" aria-label="Fermer">✕</button>
+      </header>
+      <div class="modal-body">
+        <label id="preset-cat-select-wrap">
+          Rubrique
+          <select id="preset-cat-select"></select>
+        </label>
+        <label id="preset-cat-label-wrap">
+          Nom
+          <input id="preset-cat-label-input" maxlength="60" placeholder="Nom de la rubrique" />
+        </label>
+        <p id="preset-cat-hint" class="hint"></p>
+      </div>
+      <footer class="modal-footer">
+        <button type="button" class="btn modal-close" data-close="preset-cat-modal">Annuler</button>
+        <button type="button" id="preset-cat-submit-btn" class="btn primary">Valider</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="/static/app.js?v=20250624"></script>
+</body>
+</html>

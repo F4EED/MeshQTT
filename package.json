@@ -1,0 +1,16 @@
+{
+  "name": "meshqtt",
+  "version": "1.0.0",
+  "description": "Client Meshtastic **nodeless** (sans radio) accessible via navigateur, pour la gestion de crise sur réseau mesh MQTT.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

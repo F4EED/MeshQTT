@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MeshQTT — Carte</title>
+  <link rel="stylesheet" href="/static/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="/static/map.css" />
+</head>
+<body>
+  <header class="map-top">
+    <div class="map-brand">
+      <h1>Carte MeshQTT</h1>
+      <p id="map-status" class="map-status">Chargement…</p>
+    </div>
+    <div class="map-actions">
+      <button type="button" id="map-refresh-btn" class="btn primary">Actualiser Inforoute</button>
+      <span class="map-hint">Fond OSM en ligne · Inforoute si activé · Meshtastic à venir</span>
+    </div>
+  </header>
+  <div id="map" class="map-root" role="application" aria-label="Carte MeshQTT"></div>
+  <aside id="map-legend" class="map-legend" aria-label="Légende"></aside>
+
+  <script src="/static/leaflet/leaflet.js"></script>
+  <script src="/static/map.js"></script>
+</body>
+</html>

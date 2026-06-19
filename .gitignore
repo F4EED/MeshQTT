@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.db
+data/settings.json
+node_modules/
+package-lock.json
+.cursor/
