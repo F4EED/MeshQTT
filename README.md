@@ -77,7 +77,7 @@ Guide gateway radio : [docs/mqtt-gateway.md](docs/mqtt-gateway.md)
 ### Installation
 
 ```powershell
-git clone <url-du-depot>
+git clone https://github.com/F4EED/MeshQTT.git
 cd MeshQTT
 
 python -m venv .venv
@@ -151,5 +151,5 @@ Documentation complète : [docs/configuration.md](docs/configuration.md)
 
 ## Licence
 
-Usage interne / gestion de crise — adapter selon vos besoins.  
-Vérifiez la licence de [Connect](https://github.com/pdxlocations/connect) pour toute redistribution ou réutilisation du code d’origine.
+MIT License — voir [LICENSE](LICENSE).  
+Usage orienté gestion de crise ; vérifiez aussi la licence de [Connect](https://github.com/pdxlocations/connect) pour le code d’origine.
