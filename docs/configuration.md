@@ -69,6 +69,8 @@ MeshQTT simule un nœud MQTT sans radio ; les autres gateways relaient les paque
 
 ## Info Routes 42 — canaux par défaut
 
+> **Desactive pour le moment** : UI, API `/api/inforoute42` et couche carte commentees dans le code. Voir `scripts/comment_inforoute.py` et les blocs `Info Routes 42 — desactive` dans les sources.
+
 | Action | Canal |
 |--------|-------|
 | Texte signalement | **D_Ligerien** (trouvé par nom dans la config) |

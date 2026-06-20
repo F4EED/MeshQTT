@@ -110,7 +110,7 @@ DEFAULTS: dict[str, Any] = {
     },
     "ui": {
         "theme": "dark",
-        "inforoute_enabled": True,
+        # "inforoute_enabled": True,  # Info Routes 42 — desactive pour le moment
     },
 }
 
@@ -162,7 +162,8 @@ def normalize_ui(ui: dict[str, Any]) -> dict[str, Any]:
     ui = deepcopy(ui)
     theme = ui.get("theme", "dark")
     ui["theme"] = theme if theme in ("light", "dark") else "dark"
-    ui["inforoute_enabled"] = bool(ui.get("inforoute_enabled", True))
+    # Info Routes 42 — desactive pour le moment
+    # ui["inforoute_enabled"] = bool(ui.get("inforoute_enabled", True))
     return ui
 
 

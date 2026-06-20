@@ -98,7 +98,7 @@ Détail des paramètres : [docs/configuration.md](docs/configuration.md)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│  MeshQTT          [Statut]  [Info Routes 42]  [Carte]  [MQTT] [Meshtastic]  │
+│  MeshQTT          [Statut]  [Carte]  [MQTT] [Meshtastic]  │
 │                                                      [Connecter] [Déconnecter]│
 ├──────────────┬───────────────────────────────────────────────┬───────────────┤
 │ PRÉDÉFINIS   │  MESSAGES (fil temps réel WebSocket)          │  NŒUDS (42)   │
@@ -110,7 +110,7 @@ Détail des paramètres : [docs/configuration.md](docs/configuration.md)
 │ [+ Nouveau]  │  CLAVIER — Groupe / Direct                    │               │
 │              │  [Canal ▼] [Message...............] [Envoyer] │               │
 │              ├───────────────────────────────────────────────┤               │
-│              │  INFO ROUTES 42 (Internet) → remontée mesh    │               │
+│              │  (Info Routes 42 desactive pour le moment)    │               │
 └──────────────┴───────────────────────────────────────────────┴───────────────┘
 ```
 
@@ -184,7 +184,7 @@ Détails : [docs/origines.md](docs/origines.md)
 | **Nœuds** | Liste des nœuds visibles sur le mesh |
 | **Canaux** | 8 slots, rôles PRINCIPAL / SECONDAIRE / DESACTIVE |
 | **Prédéfinis** | Pompier, Secours, Crise… → `data/presets.json` |
-| **Info Routes 42** | Bulletin Loire, waypoints, remontée mesh |
+| **Info Routes 42** | *Desactive pour le moment* — bulletin Loire, waypoints, remontée mesh |
 | **Carte** | Leaflet sur `/map` |
 
 ---

@@ -12,18 +12,19 @@ const sendGroupBtn = document.getElementById("send-group-btn");
 const sendDirectBtn = document.getElementById("send-direct-btn");
 const sendChannelSelect = document.getElementById("send-channel");
 const directDestinationSelect = document.getElementById("direct-destination");
-const inforouteRefreshBtn = document.getElementById("inforoute-refresh-btn");
-const inforouteStatusEl = document.getElementById("inforoute-status");
-const inforouteContentEl = document.getElementById("inforoute-content");
-const inforouteChannelSelect = document.getElementById("inforoute-channel");
-const inforouteMeshText = document.getElementById("inforoute-mesh-text");
-const inforouteMeshCharCount = document.getElementById("inforoute-mesh-char-count");
-const inforouteRelayBtn = document.getElementById("inforoute-relay-btn");
+// Info Routes 42 — desactive pour le moment
+// const inforouteRefreshBtn = document.getElementById("inforoute-refresh-btn");
+// const inforouteStatusEl = document.getElementById("inforoute-status");
+// const inforouteContentEl = document.getElementById("inforoute-content");
+// const inforouteChannelSelect = document.getElementById("inforoute-channel");
+// const inforouteMeshText = document.getElementById("inforoute-mesh-text");
+// const inforouteMeshCharCount = document.getElementById("inforoute-mesh-char-count");
+// const inforouteRelayBtn = document.getElementById("inforoute-relay-btn");
 const connectBtn = document.getElementById("connect-btn");
 const disconnectBtn = document.getElementById("disconnect-btn");
 const mapBtn = document.getElementById("map-btn");
-const inforoutePanel = document.getElementById("inforoute-panel");
-const inforouteEnabledToggle = document.getElementById("inforoute-enabled-toggle");
+// const inforoutePanel = document.getElementById("inforoute-panel");
+// const inforouteEnabledToggle = document.getElementById("inforoute-enabled-toggle");
 const themeBtn = document.getElementById("theme-btn");
 const mqttModal = document.getElementById("mqtt-modal");
 const meshModal = document.getElementById("mesh-modal");
@@ -122,12 +123,13 @@ let presetCategories = structuredClone(DEFAULT_PRESET_CATEGORIES);
 let presetCatModalMode = "add";
 let bundledPresetsData = null;
 
-const INFOROUTE_DEFAULT_CHANNEL = "D_Ligerien";
-const INFOROUTE_WAYPOINT_CHANNEL = 0;
-const INFOROUTE_AUTO_REFRESH_MS = 30 * 60 * 1000;
-let inforouteRefreshBusy = false;
-let inforouteAutoRefreshTimer = null;
-let inforouteMapChannel = null;
+// Info Routes 42 — desactive pour le moment
+// const INFOROUTE_DEFAULT_CHANNEL = "D_Ligerien";
+// const INFOROUTE_WAYPOINT_CHANNEL = 0;
+// const INFOROUTE_AUTO_REFRESH_MS = 30 * 60 * 1000;
+// let inforouteRefreshBusy = false;
+// let inforouteAutoRefreshTimer = null;
+// let inforouteMapChannel = null;
 
 const DEFAULT_SETTINGS = {
   mqtt: {
@@ -173,7 +175,7 @@ const DEFAULT_SETTINGS = {
     long_name: "MeshQTT Web",
     node_id: null,
   },
-  ui: { theme: "dark", inforoute_enabled: true },
+  ui: { theme: "dark" /* inforoute_enabled: true — desactive */ },
 };
 
 const RESERVED_NODE_IDS = new Set([1, 2, 3, 4, 0xffffffff]);
@@ -466,6 +468,22 @@ function getChannelIndexByName(meshSettings, name) {
   return null;
 }
 
+function updateSendChannelSelect(meshSettings) {
+  fillChannelSelect(sendChannelSelect, meshSettings, sendChannelSelect.value);
+  renderPresets();
+}
+
+// Info Routes 42 — desactive pour le moment (reactiver le bloc commente + index.html, map.js, main.py)
+function updateInforouteRelayState() {}
+function applyInforouteEnabled() {}
+function isInforouteEnabled() { return false; }
+
+function openMapWindow() {
+  const features = "noopener,noreferrer,width=1200,height=820";
+  window.open("/map", "meshqtt-map", features);
+}
+
+/*
 function getInforouteDefaultChannelIndex(meshSettings) {
   const mesh = meshSettings || settings?.meshtastic;
   const named = getChannelIndexByName(mesh, INFOROUTE_DEFAULT_CHANNEL);
@@ -844,7 +862,7 @@ async function setInforouteEnabled(enabled) {
   try {
     await persistSettings({ ui: { inforoute_enabled: Boolean(enabled) } });
   } catch {
-    /* localStorage déjà à jour */
+    // localStorage déjà à jour
   }
   applyInforouteEnabled(Boolean(enabled));
 }
@@ -1028,6 +1046,54 @@ async function sendInforouteWaypointToMesh(ev, channelIndex = INFOROUTE_WAYPOINT
   await sendMeshWaypoint(payload, channelIndex);
 }
 
+*/
+
+async function sendMeshWaypoint(
+  { latitude, longitude, name, description },
+  channelIndex = null
+) {
+  if (!isConnected) {
+    showToast("Connectez-vous pour envoyer", "error");
+    return false;
+  }
+
+  const channel =
+    channelIndex !== null && channelIndex !== undefined
+      ? channelIndex
+      : (settings?.meshtastic?.active_channel ?? 0);
+
+  if (channel == null || !isChannelSendable(channel)) {
+    showToast(
+      `Canal ${getChannelLabel(channel)} non actif — vérifiez la config Meshtastic`,
+      "error"
+    );
+    return false;
+  }
+
+  const res = await localFetch("/api/waypoint", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      latitude,
+      longitude,
+      name,
+      description,
+      channel,
+    }),
+  }).catch(() => null);
+
+  if (!res?.ok) {
+    showToast("Envoi du repère impossible", "error");
+    return false;
+  }
+
+  appendSystem(
+    `→ Repère [${getChannelLabel(channel)}] ${name} (${latitude.toFixed(5)}, ${longitude.toFixed(5)})`
+  );
+  showToast("Repère placé sur la carte mesh", "success");
+  return true;
+}
+
 function getNodeLabel(nodeId) {
   const n = nodes.get(nodeId);
   return n ? `${n.short_name} (${n.user_id})` : `nœud ${nodeId}`;
@@ -1099,7 +1165,7 @@ function setConnected(connected, message) {
   directMessageInput.disabled = !connected;
   directDestinationSelect.disabled = !connected;
   updateDirectSendState();
-  updateInforouteRelayState();
+  // updateInforouteRelayState();
   connectBtn.disabled = connected;
   disconnectBtn.disabled = !connected;
   presetsListEl.querySelectorAll(".preset-send-btn").forEach((btn) => {
@@ -2051,20 +2117,14 @@ presetForm.addEventListener("submit", (e) => {
   savePresetFromModal(text, categoryId, channelIndex, visu, option);
 });
 
-inforouteRefreshBtn?.addEventListener("click", () => refreshInforoute42({ manual: true }));
-mapBtn?.addEventListener("click", () => openInforouteMapWindow());
-inforouteEnabledToggle?.addEventListener("change", () => {
-  setInforouteEnabled(inforouteEnabledToggle.checked);
-});
-inforouteRelayBtn?.addEventListener("click", () => relayInforoute42ToMesh());
-inforouteMeshText?.addEventListener("input", () => {
-  const clamped = clampMeshMessage(inforouteMeshText.value);
-  if (clamped !== inforouteMeshText.value) {
-    inforouteMeshText.value = clamped;
-  }
-  updateMeshMessageCounter(inforouteMeshText, inforouteMeshCharCount);
-  updateInforouteRelayState();
-});
+// Info Routes 42 — desactive pour le moment
+// inforouteRefreshBtn?.addEventListener("click", () => refreshInforoute42({ manual: true }));
+mapBtn?.addEventListener("click", () => openMapWindow());
+// inforouteEnabledToggle?.addEventListener("change", () => {
+//   setInforouteEnabled(inforouteEnabledToggle.checked);
+// });
+// inforouteRelayBtn?.addEventListener("click", () => relayInforoute42ToMesh());
+// inforouteMeshText?.addEventListener("input", () => { ... });
 
 document.getElementById("mqtt-settings-btn").addEventListener("click", () => {
   fillMqttForm();
@@ -2299,7 +2359,7 @@ async function loadSettings() {
   }
   updateSendChannelSelect(settings.meshtastic);
   applyTheme(normalizeTheme(settings.ui?.theme));
-  applyInforouteEnabled(isInforouteEnabled());
+  // applyInforouteEnabled(isInforouteEnabled());
 }
 
 async function persistSettings(patch) {
@@ -2535,8 +2595,9 @@ async function init() {
   buildChannelEditor();
   bindMeshMessageInput(groupMessageInput, groupMessageCharCount);
   bindMeshMessageInput(directMessageInput, directMessageCharCount);
-  bindMeshMessageInput(inforouteMeshText, inforouteMeshCharCount);
-  updateInforouteRelayState();
+  // Info Routes 42 — desactive pour le moment
+  // bindMeshMessageInput(inforouteMeshText, inforouteMeshCharCount);
+  // updateInforouteRelayState();
   bindMeshMessageInput(presetInput, presetCharCount);
   bindMeshMessageInput(presetSendInput, presetSendCharCount);
   openPresetCategories = loadOpenPresetCategories();

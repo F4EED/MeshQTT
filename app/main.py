@@ -15,7 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
 from app.constants import validate_mesh_text_message
-from app.inforoute42 import fetch_inforoute42_bulletin
+# Info Routes 42 — desactive pour le moment
+# from app.inforoute42 import fetch_inforoute42_bulletin
 from app.mqtt_client import AsyncMeshtasticBridge
 from app.presets import load_bundled_presets, save_bundled_presets
 from app.settings import CHANNEL_COUNT, load_settings, normalize_meshtastic, save_settings, settings_to_mqtt_config
@@ -56,7 +57,7 @@ class MeshtasticSettings(BaseModel):
 
 class UiSettings(BaseModel):
     theme: str = Field(default="dark", pattern="^(light|dark)$")
-    inforoute_enabled: bool = True
+    # inforoute_enabled: bool = True  # Info Routes 42 — desactive pour le moment
 
 
 class SettingsUpdate(BaseModel):
@@ -131,7 +132,7 @@ async def index():
 
 @app.get("/map")
 async def map_page():
-    """Carte Info Routes 42 (Leaflet, fond tuiles en ligne)."""
+    """Carte Leaflet (fond OSM). Couche Info Routes 42 desactivee pour le moment."""
     return FileResponse(STATIC_DIR / "map.html")
 
 
@@ -299,15 +300,16 @@ async def api_waypoint(body: WaypointRequest):
     return {"ok": True}
 
 
-@app.get("/api/inforoute42")
-async def api_inforoute42():
-    """Proxy vers inforoute42.fr — seul appel externe Internet du serveur."""
-    try:
-        return await asyncio.to_thread(fetch_inforoute42_bulletin)
-    except ConnectionError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+# Info Routes 42 — desactive pour le moment
+# @app.get("/api/inforoute42")
+# async def api_inforoute42():
+#     """Proxy vers inforoute42.fr — seul appel externe Internet du serveur."""
+#     try:
+#         return await asyncio.to_thread(fetch_inforoute42_bulletin)
+#     except ConnectionError as exc:
+#         raise HTTPException(status_code=502, detail=str(exc)) from exc
+#     except ValueError as exc:
+#         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.websocket("/ws")

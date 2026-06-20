@@ -1,3 +1,4 @@
+# Info Routes 42 — module desactive pour le moment (route /api/inforoute42 commentee dans main.py).
 """Récupération Inforoute 42 — https://www.inforoute42.fr/ (accès Internet)."""
 
 from __future__ import annotations

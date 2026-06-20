@@ -28,11 +28,13 @@
     </div>
     <div class="header-actions">
       <div id="status-bar" class="status disconnected">Déconnecté</div>
+      <!-- Info Routes 42 — desactive pour le moment
       <label class="inforoute-toggle" title="Afficher la zone Remontée Info Routes 42 sur la page principale">
         <input type="checkbox" id="inforoute-enabled-toggle" checked />
         <span>Info Routes 42</span>
       </label>
-      <button type="button" id="map-btn" class="btn" title="Ouvrir la carte (Info Routes si activé)">Carte</button>
+      -->
+      <button type="button" id="map-btn" class="btn" title="Ouvrir la carte (fond OSM)">Carte</button>
       <button type="button" id="theme-btn" class="btn icon-btn" title="Thème : Nuit" aria-label="Basculer jour / nuit">☾</button>
       <button type="button" id="mqtt-settings-btn" class="btn">MQTT</button>
       <button type="button" id="mesh-settings-btn" class="btn">Meshtastic</button>
@@ -127,6 +129,7 @@
         <p class="hint keyboard-footnote">Cliquez un nœud dans la colonne de droite pour le sélectionner comme destinataire.</p>
       </section>
 
+      <!-- Info Routes 42 — desactive pour le moment
       <section id="inforoute-panel" class="panel inforoute-panel external-zone" aria-labelledby="inforoute-title">
         <div class="inforoute-head">
           <h2 id="inforoute-title">Remontée Info Routes 42</h2>
@@ -163,6 +166,7 @@
           </button>
         </div>
       </section>
+      -->
     </div>
 
     <aside class="panel nodes-panel">
@@ -342,6 +346,6 @@
     </form>
   </dialog>
 
-  <script src="/static/app.js?v=20250625b"></script>
+  <script src="/static/app.js?v=20250626"></script>
 </body>
 </html>
