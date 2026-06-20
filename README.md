@@ -98,10 +98,9 @@ Détail des paramètres : [docs/configuration.md](docs/configuration.md)
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│  MeshQTT          [Statut]  [Carte]  [MQTT] [Meshtastic]  │
-│                                                      [Connecter] [Déconnecter]│
+│  MeshQTT          [Statut]  [Carte]  [MQTT] [Meshtastic]  [Connecter]       │
 ├──────────────┬───────────────────────────────────────────────┬───────────────┤
-│ PRÉDÉFINIS   │  MESSAGES (fil temps réel WebSocket)          │  NŒUDS (42)   │
+│ PRÉDÉFINIS   │  MESSAGES (fil temps réel WebSocket)          │  NŒUDS        │
 │              │                                               │               │
 │ ▶ Pompier    │  [12:04] Fr_Balise : PARTI                   │  !a1b2c3d4    │
 │ ▶ Secours    │  [12:05] D_Ligerien : renfort demandé         │  !e5f6g7h8    │
@@ -109,8 +108,6 @@ Détail des paramètres : [docs/configuration.md](docs/configuration.md)
 │              ├───────────────────────────────────────────────┤               │
 │ [+ Nouveau]  │  CLAVIER — Groupe / Direct                    │               │
 │              │  [Canal ▼] [Message...............] [Envoyer] │               │
-│              ├───────────────────────────────────────────────┤               │
-│              │  (Info Routes 42 desactive pour le moment)    │               │
 └──────────────┴───────────────────────────────────────────────┴───────────────┘
 ```
 
@@ -151,7 +148,7 @@ MeshQTT est une **adaptation web** de [**Connect**](https://github.com/pdxlocati
   mqtt-connect.py                 →   app/mqtt_client.py + API REST
   Client desktop                  →   Serveur FastAPI + navigateur
   Carte folium optionnelle        →   Waypoints WAYPOINT_APP + Leaflet
-  —                               →   Info Routes 42, prédéfinis, 8 canaux UI
+  —                               →   Prédéfinis, 8 canaux UI, carte Leaflet
 ```
 
 | | |
@@ -171,10 +168,10 @@ Détails : [docs/origines.md](docs/origines.md)
   │   MQTT      │  │  MESSAGES   │  │   CANAUX    │  │ PRÉDÉFINIS  │
   │ multi-canal │  │ temps réel  │  │  0 → 7 PSK  │  │  rubriques  │
   └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
-  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-  │  CLAVIER    │  │ INFO ROUTE  │  │   CARTE     │  │   THÈME     │
-  │ grp/direct  │  │ 42 + mesh   │  │  /map OSM   │  │  jour/nuit  │
-  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
+  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+  │  CLAVIER    │  │   CARTE     │  │   THÈME     │
+  │ grp/direct  │  │  /map OSM   │  │  jour/nuit  │
+  └─────────────┘  └─────────────┘  └─────────────┘
 ```
 
 | Domaine | Description |
@@ -184,8 +181,7 @@ Détails : [docs/origines.md](docs/origines.md)
 | **Nœuds** | Liste des nœuds visibles sur le mesh |
 | **Canaux** | 8 slots, rôles PRINCIPAL / SECONDAIRE / DESACTIVE |
 | **Prédéfinis** | Pompier, Secours, Crise… → `data/presets.json` |
-| **Info Routes 42** | *Desactive pour le moment* — bulletin Loire, waypoints, remontée mesh |
-| **Carte** | Leaflet sur `/map` |
+| **Carte** | Leaflet sur `/map` (fond OpenStreetMap) |
 
 ---
 
@@ -269,7 +265,6 @@ Documentation : [docs/configuration.md](docs/configuration.md)
                     ├────────────────┤
                     │ mqtt_client.py │◄── paho-mqtt · protobuf
                     │ mesh_crypto.py │◄── AES-CTR
-                    │ inforoute42.py │◄── proxy HTTP
                     └────────┬─────────┘
                              │ MQTT :1883
                     ┌────────▼─────────┐
@@ -295,7 +290,6 @@ Documentation : [docs/configuration.md](docs/configuration.md)
 | [docs/mqtt-gateway.md](docs/mqtt-gateway.md) | Brancher une radio Meshtastic |
 | [docs/configuration.md](docs/configuration.md) | MQTT, canaux, settings |
 | [docs/utilisation.md](docs/utilisation.md) | Interface web |
-| [docs/inforoute42.md](docs/inforoute42.md) | Info Routes 42 |
 | [docs/cartographie.md](docs/cartographie.md) | Carte Leaflet |
 | [docs/depannage.md](docs/depannage.md) | Dépannage |
 | [docs/architecture.md](docs/architecture.md) | API, protocole |
