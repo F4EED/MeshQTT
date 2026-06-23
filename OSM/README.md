@@ -2,44 +2,32 @@
 
 Tuiles raster pour fond de carte **sans Internet**, format `{z}/{x}/{y}.png`.
 
-## Fichiers locaux (hors Git)
+## Présentes sur GitHub (snapshot figé)
 
-Les tuiles PNG **ne sont pas versionnées** : `git commit` / `git push` les ignore.  
-Elles restent sur votre disque dans `OSM/` une fois générées — **pas de retéléchargement** tant que vous ne supprimez pas le dossier.
+Les **~2 400 tuiles** sont **versionnées dans le dépôt** : après `git clone`, le dossier `OSM/` est complet.
 
-Après un `git clone` sur une autre machine, lancer **une seule fois** :
-
-```powershell
-python OSM/download_tiles.py
-```
-
-Snapshot prévu : France métropole + Corse, zoom 6–10 (~2 400 tuiles, ~16 Mo). **Pas de mise à jour OSM prévue.**
+- **Pas de téléchargement** en usage normal (`download_tiles.py` inutile après clone)
+- **Pas de mise à jour OSM prévue** — snapshot France métropole + Corse, zoom 6–10
+- Les commits / push **ultérieurs** ne modifient ces fichiers que si vous les changez volontairement
 
 ## Structure
 
 ```
 OSM/
-  6/32/22.png          # local uniquement (.gitignore)
+  6/32/22.png
   7/65/44.png
   ...
-  download_tiles.py    # dans Git
-  README.md            # dans Git
+  download_tiles.py
+  README.md
 ```
 
-## Script `download_tiles.py`
+## Script `download_tiles.py` (optionnel)
+
+Uniquement pour **régénérer** (autre zone, zoom, dossier vide) — pas l’usage courant :
 
 ```powershell
 python OSM/download_tiles.py
 ```
-
-Options :
-
-```powershell
-python OSM/download_tiles.py --zoom-min 6 --zoom-max 10 --delay 0.25
-python OSM/download_tiles.py --out D:\MonApp\OSM
-```
-
-Tuiles déjà présentes = ignorées (reprise possible).
 
 ## Intégration Leaflet
 

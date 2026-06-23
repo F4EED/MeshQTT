@@ -38,7 +38,7 @@ La carte lit le réglage au chargement (`localStorage`) et se synchronise si vou
 |-----------|------|
 | `map.html`, `map.js`, `map.css` | **Local** (servis par MeshQTT) |
 | `leaflet/` (JS + CSS) | **Local** (`app/static/leaflet/`) |
-| Tuiles fond de carte (`OSM/`, zoom 6–10) | **Local** — hors Git ; une génération avec `OSM/download_tiles.py` si absentes |
+| Tuiles fond de carte (`OSM/`, zoom 6–10) | **Local** — dans le dépôt Git (clone = tuiles prêtes, pas de retéléchargement) |
 | Tuiles OSM en ligne (actuel sur `/map`) | **En ligne** (tile.openstreetmap.org) — tant que la carte n’utilise pas `OSM/` |
 | Données signalements Inforoute | API locale → proxy Internet (si couche activée) |
 
@@ -64,7 +64,7 @@ app/static/map.html
 app/static/map.js
 app/static/map.css
 app/static/leaflet/     # bibliothèque embarquée
-OSM/                    # tuiles offline (PNG locaux, .gitignore — voir OSM/README.md)
+OSM/                    # tuiles offline France (zoom 6–10, versionnées — voir OSM/README.md)
 ```
 
 Route FastAPI : `GET /map`
