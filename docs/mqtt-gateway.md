@@ -142,7 +142,7 @@ Les canaux configurés dans MeshQTT (**Réglages Meshtastic**) doivent correspon
 | Test Android « Délai expiré 5000 ms » | **TLS activé** alors que le broker est en 1883 sans certificat ; ou téléphone pas sur le même WiFi que le Pi ; adresse avec `:1883` dans le champ Adresse |
 | MeshQTT connecté mais pas de nœuds | Pas de gateway MQTT active sur le mesh |
 | Messages illisibles / erreur déchiffrement | Clé PSK différente entre radio et MeshQTT |
-| Envoi OK, rien sur le mesh | Nom de canal différent, pas de gateway relais, ou souci **`//` vs `/`** dans le topic (voir [depannage.md](depannage.md)) |
+| Envoi OK, rien sur le mesh | **Downlink enabled** sur le canal côté gateway ; nom de canal identique ; PSK identique ; paquet MQTT chiffré (MeshQTT) — voir ci-dessous |
 
 Voir [depannage.md](depannage.md) pour le détail.
 

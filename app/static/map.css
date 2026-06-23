@@ -157,6 +157,10 @@ body {
   letter-spacing: 0.03em;
 }
 
+.map-legend-muted {
+  color: var(--map-muted);
+}
+
 .map-popup-desc,
 .map-popup-period {
   margin: 0.25rem 0 0;

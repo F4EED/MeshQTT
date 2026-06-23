@@ -269,6 +269,12 @@ async def api_nodes():
     return {"nodes": bridge.client.get_nodes()}
 
 
+@app.get("/api/positions")
+async def api_positions():
+    """Dernière position connue par nœud (mémoire serveur, depuis MQTT)."""
+    return {"positions": bridge.client.get_positions()}
+
+
 def _apply_client_settings(body: ConnectRequest | None) -> dict[str, Any]:
     current = load_settings()
     if body is None or (body.mqtt is None and body.meshtastic is None):

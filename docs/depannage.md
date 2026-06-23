@@ -85,6 +85,28 @@ Symptôme typique : la radio publie sur `msh/EU_868//2/e/Fr_Balise/!node` (deux 
 
 Exemple gateway Pi : `/var/lib/meshtastic-mqtt-capture/meshtastic-YYYYMMDD.log`
 
+## Message visible dans MQTT Explorer mais pas sur le mesh (downlink)
+
+MeshQTT publie bien sur le broker (topic `msh/EU_868//2/e/{canal}/!votre_noeud`) — la gateway doit **relayer** vers le LoRa.
+
+1. **Downlink enabled** sur le **même canal** que l’envoi (app Meshtastic → Canaux → ex. Fr_BlaBla → Downlink → Envoyer).
+
+2. **Nom de canal** strictement identique (`Fr_BlaBla`, pas une variante).
+
+3. **Clé PSK** identique dans MeshQTT et sur la radio pour ce canal.
+
+4. **Chiffrement MQTT** sur la gateway (Module MQTT → *Encryption enabled*) :
+   - **Désactivé** (courant sur broker local Pi) → paquets **decoded** en downlink ; MeshQTT envoie `decoded` pour les canaux `AQ==`
+   - **Activé** → paquets **chiffrés** obligatoires ; MeshQTT s’aligne sur l’uplink reçu ou chiffre si PSK explicite
+
+5. **Gateway en ligne** : WiFi OK, MQTT connecté au **même** broker (`192.168.1.66`). **Proxy client MQTT désactivé** si la radio a le WiFi (gateway directe).
+
+6. Topic downlink : `msh/EU_868/2/e/{canal}/!votre_noeud` **et** variante `msh/EU_868//2/e/…` (MeshQTT publie les deux ; s’abonne aux deux pour la réception).
+
+7. **Downlink enabled** sur **D_Ligerien** (canal visé), puis **Envoyer** et redémarrer la radio si l’abonnement MQTT ne se met pas à jour.
+
+8. Journal MeshQTT à l’envoi : `↑ MQTT … (decoded)` ou `(chiffré)` — doit correspondre au réglage *Encryption enabled* de la gateway.
+
 ## Déchiffrement échoué
 
 La clé PSK du canal dans MeshQTT doit correspondre à celle du mesh. Canal sans clé (`key` vide ou `AQ==`) = non chiffré.

@@ -8,3 +8,6 @@ data/settings.json
 node_modules/
 package-lock.json
 .cursor/
+
+# Tuiles OSM offline (générées par OSM/download_tiles.py)
+OSM/*/*/*.png

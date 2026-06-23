@@ -46,6 +46,7 @@ sequenceDiagram
 | PUT | `/api/settings` | Mettre à jour config |
 | GET | `/api/status` | État connexion |
 | GET | `/api/nodes` | Nœuds connus |
+| GET | `/api/positions` | Dernières positions Meshtastic (mémoire serveur) |
 | POST | `/api/connect` | Connecter MQTT |
 | POST | `/api/disconnect` | Déconnecter |
 | POST | `/api/send` | Message texte |

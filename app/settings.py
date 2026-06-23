@@ -176,7 +176,7 @@ def normalize_root_topic(raw: str) -> str:
     if root.startswith("msh/EU/433"):
         root = "msh/EU_868"
     root = root.rstrip("/")
-    return f"{root}/" if root else "msh/EU_868/"
+    return root if root else "msh/EU_868"
 
 
 def normalize_mqtt(mqtt: dict[str, Any]) -> dict[str, Any]:

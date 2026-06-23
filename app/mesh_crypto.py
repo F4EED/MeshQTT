@@ -22,7 +22,7 @@ def xor_hash(data: bytes) -> int:
 
 
 def generate_hash(name: str, key: str) -> int:
-    replaced_key = key.replace("-", "+").replace("_", "/")
+    replaced_key = normalize_key(key).replace("-", "+").replace("_", "/")
     key_bytes = base64.b64decode(replaced_key.encode("utf-8"))
     return xor_hash(name.encode("utf-8")) ^ xor_hash(key_bytes)
 

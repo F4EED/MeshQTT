@@ -7,6 +7,20 @@ Carte **Leaflet** : fond OpenStreetMap ; couche **Info Routes 42** si activée d
 - Bouton **Carte** dans l’en-tête de la page principale (toujours visible)
 - Ouvre une **nouvelle fenêtre** navigateur : [http://127.0.0.1:8080/map](http://127.0.0.1:8080/map)
 
+## Positions Meshtastic
+
+Les positions reçues via MQTT sont **conservées en mémoire** côté serveur (dernière position par nœud).
+
+| Moment | Comportement |
+|--------|----------------|
+| Ouverture de `/map` | Chargement via `GET /api/positions`, puis marqueurs sur la carte |
+| Carte déjà ouverte | WebSocket `/ws` — événement `type: position` à chaque réception MQTT |
+
+- Un marqueur coloré par nœud (`from_id`), mis à jour à chaque nouvelle position
+- Clic : nom court/long, canal, coordonnées, horodatage
+- Légende : nombre de nœuds visibles
+- Coordonnées `0, 0` ignorées (position invalide)
+
 ## Info Routes 42 sur la carte
 
 Contrôlé par la case **Info Routes 42** (réglage `ui.inforoute_enabled`) :

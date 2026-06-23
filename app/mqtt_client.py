@@ -59,30 +59,43 @@ def mqtt_topic_prefix(root: str, *, json: bool = False, legacy: bool = False) ->
 
 
 def mqtt_subscribe_topics(root: str) -> list[str]:
-    """Wildcards d'abonnement — format firmware (+ variante sans double slash)."""
-    raw = mqtt_root_raw(root)
-    base = raw.rstrip("/")
+    """Wildcards d'abonnement — toujours les variantes /2/e/ et //2/e/ (root avec ou sans slash)."""
+    base = mqtt_root_raw(root).rstrip("/")
     topics: list[str] = []
     for segment in (MESHTASTIC_FW_CRYPT, MESHTASTIC_FW_JSON, MESHTASTIC_FW_LEGACY):
-        topics.append(f"{raw}{segment}#")
-        if base and raw != base:
-            topics.append(f"{base}{segment}#")
+        topics.append(f"{base}{segment}#")
+        topics.append(f"{base}/{segment}#")
     return list(dict.fromkeys(topics))
+
+
+def mqtt_publish_topics(root: str, channel_name: str, node_name: str) -> list[str]:
+    """Topics downlink protobuf — variantes slash simple et double (firmware Meshtastic)."""
+    base = mqtt_root_raw(root).rstrip("/")
+    tail = f"{channel_name}/{node_name}"
+    return list(
+        dict.fromkeys(
+            [
+                f"{base}{MESHTASTIC_FW_CRYPT}{tail}",
+                f"{base}/{MESHTASTIC_FW_CRYPT}{tail}",
+            ]
+        )
+    )
 
 
 def parse_channel_from_meshtastic_topic(topic: str, root: str) -> str:
     """Extrait le nom de canal depuis un topic Meshtastic (…/2/json/Canal/!node)."""
-    raw = mqtt_root_raw(root)
-    if topic.startswith(raw):
-        rest = topic[len(raw) :]
-    elif topic.startswith(mqtt_root_normalized(root)):
-        rest = topic[len(mqtt_root_normalized(root)) :]
+    base = mqtt_root_raw(root).rstrip("/")
+    if topic.startswith(base):
+        rest = topic[len(base) :]
     else:
         return ""
     rest = rest.lstrip("/")
     for segment in MESHTASTIC_TOPIC_PREFIXES:
-        if rest.startswith(segment):
-            rest = rest[len(segment) :]
+        if rest.startswith(segment.lstrip("/")) or rest.startswith(segment):
+            if rest.startswith(segment):
+                rest = rest[len(segment) :]
+            else:
+                rest = rest[len(segment.lstrip("/")) :]
             break
     return rest.split("/")[0] if rest else ""
 
@@ -211,6 +224,19 @@ class ChatMessage:
     to_short: str = "?"
 
 
+@dataclass
+class NodePosition:
+    from_id: int
+    latitude: float
+    longitude: float
+    timestamp: float
+    channel_index: int | None = None
+    channel_name: str = ""
+    from_short: str = "?"
+    long_name: str = ""
+    altitude: float | None = None
+
+
 class MeshtasticMqttClient:
     """Pont MQTT Meshtastic avec callbacks thread-safe vers asyncio."""
 
@@ -222,12 +248,15 @@ class MeshtasticMqttClient:
         self._connected = False
         self._global_message_id = random.randint(100000, 999999)
         self._nodes: dict[int, NodeInfo] = {}
+        self._positions: dict[int, NodePosition] = {}
         self._seen_ids: set[int] = set()
         self._lock = threading.Lock()
         self._channel_name_to_index: dict[str, int] = {}
         self._mqtt_rx_count = 0
         self._last_mqtt_topic = ""
         self._last_mqtt_rx_at: float | None = None
+        # None = auto ; True/False = format uplink MQTT observé (protobuf chiffré ou decoded)
+        self._uplink_mqtt_encrypted: bool | None = None
 
     @property
     def config(self) -> MqttConfig:
@@ -245,7 +274,7 @@ class MeshtasticMqttClient:
 
     @property
     def node_name(self) -> str:
-        return "!" + hex(self.node_number)[2:]
+        return "!" + format(self.node_number, "08x")
 
     def _emit(self, event: dict[str, Any]) -> None:
         self._on_event(event)
@@ -259,6 +288,7 @@ class MeshtasticMqttClient:
         self.disconnect()
         self._config = config
         self._rebuild_channel_map()
+        self._uplink_mqtt_encrypted = None
         if self._config.node_id is None:
             self._config.node_id = random.randint(0x10000000, 0xFFFFFFFE)
 
@@ -394,7 +424,11 @@ class MeshtasticMqttClient:
 
     def _publish_topic(self, channel_name: str) -> str:
         # Comme le firmware : moduleConfig.mqtt.root + "/2/e/" + canal + "/" + node
-        return f"{mqtt_topic_prefix(self._config.root_topic)}{channel_name}/{self.node_name}"
+        topics = mqtt_publish_topics(self._config.root_topic, channel_name, self.node_name)
+        return topics[0]
+
+    def _publish_topics(self, channel_name: str) -> list[str]:
+        return mqtt_publish_topics(self._config.root_topic, channel_name, self.node_name)
 
     def _subscribe_topics(self) -> list[str]:
         """Abonnements MQTT — réception de tous les canaux (wildcard Meshtastic)."""
@@ -403,6 +437,37 @@ class MeshtasticMqttClient:
         for _, ch in self._config.named_channels():
             topics.append(f"{root}{ch.name}/#")
         return list(dict.fromkeys(topics))
+
+    def _primary_channel_index(self) -> int:
+        for i, ch in enumerate(self._config.channels):
+            if ch.role == "PRINCIPAL":
+                return i
+        return 0
+
+    def _effective_channel_key(self, channel_index: int, channel: ChannelConfig) -> str:
+        """Clé PSK effective — canal secondaire sans PSK utilise la clé primaire (firmware Meshtastic)."""
+        key = str(channel.key or "").strip()
+        if key and key not in ("", "AQ=="):
+            return key
+        if channel_index != self._primary_channel_index():
+            primary = self._config.channels[self._primary_channel_index()]
+            pk = str(primary.key or "").strip()
+            if pk:
+                return pk
+        return key or "AQ=="
+
+    def _note_uplink_mqtt_format(self, mp) -> None:
+        if packet_needs_decrypt(mp) or mp.encrypted:
+            self._uplink_mqtt_encrypted = True
+        elif packet_has_decoded(mp):
+            self._uplink_mqtt_encrypted = False
+
+    def _should_encrypt_downlink(self, channel: ChannelConfig) -> bool:
+        if self._uplink_mqtt_encrypted is not None:
+            return self._uplink_mqtt_encrypted
+        key = str(channel.key or "").strip()
+        # Broker local / Gaulix : souvent encryption MQTT désactivée → paquets decoded
+        return key not in ("", "AQ==")
 
     def _keys_for_channel_id(self, channel_id: str) -> list[str]:
         keys: list[str] = []
@@ -417,8 +482,10 @@ class MeshtasticMqttClient:
         idx = self._channel_name_to_index.get(channel_id)
         if idx is not None:
             add(self._config.channels[idx].key)
-        for _, ch in self._config.named_channels():
+            add(self._effective_channel_key(idx, self._config.channels[idx]))
+        for i, ch in self._config.named_channels():
             add(ch.key)
+            add(self._effective_channel_key(i, ch))
         if not keys:
             add(DEFAULT_KEY)
             add("AQ==")
@@ -442,24 +509,49 @@ class MeshtasticMqttClient:
         mesh_packet.hop_limit = 3
         mesh_packet.hop_start = 3
 
-        if not channel.key or channel.key.strip() in ("", "AQ=="):
-            mesh_packet.decoded.CopyFrom(encoded_message)
-        else:
+        encrypt_downlink = self._should_encrypt_downlink(channel)
+        if encrypt_downlink:
+            effective_key = self._effective_channel_key(idx, channel)
             channel_hash, encrypted = encrypt_payload(
                 channel.name,
-                channel.key,
+                effective_key,
                 mesh_packet.id,
                 self.node_number,
                 encoded_message,
             )
             mesh_packet.channel = channel_hash
             mesh_packet.encrypted = encrypted
+            downlink_mode = "chiffré"
+        else:
+            mesh_packet.decoded.CopyFrom(encoded_message)
+            mesh_packet.channel = idx
+            mesh_packet.ClearField("encrypted")
+            downlink_mode = "decoded"
 
         envelope = mqtt_pb2.ServiceEnvelope()
         envelope.packet.CopyFrom(mesh_packet)
         envelope.channel_id = channel.name
         envelope.gateway_id = self.node_name
-        self._client.publish(self._publish_topic(channel.name), envelope.SerializeToString())
+        payload = envelope.SerializeToString()
+        topics = self._publish_topics(channel.name)
+        for topic in topics:
+            self._client.publish(topic, payload, qos=1)
+        logger.info("MQTT downlink %s (%s, %d octets)", topics[0], downlink_mode, len(payload))
+        self._emit(
+            {
+                "type": "activity",
+                "timestamp": time.time(),
+                "from_id": self.node_number,
+                "channel_index": idx,
+                "channel_name": channel.name,
+                "from_short": self._config.short_name,
+                "kind": "sent",
+                "text": (
+                    f"↑ MQTT {topics[0]} ({downlink_mode})"
+                    + (f" (+{len(topics) - 1} variante slash)" if len(topics) > 1 else "")
+                ),
+            }
+        )
 
     def _on_connect(self, client, userdata, connect_flags, reason_code, properties) -> None:
         if reason_code != 0:
@@ -534,6 +626,51 @@ class MeshtasticMqttClient:
             return f"!{node_id:08x}"
         return info.short_name if kind == "short" else info.long_name
 
+    @staticmethod
+    def _coords_valid(latitude: float, longitude: float) -> bool:
+        if not (-90.0 <= latitude <= 90.0 and -180.0 <= longitude <= 180.0):
+            return False
+        return not (latitude == 0.0 and longitude == 0.0)
+
+    def _store_position(
+        self,
+        *,
+        from_id: int,
+        latitude: float,
+        longitude: float,
+        channel_index: int | None,
+        channel_name: str,
+        altitude: float | None = None,
+    ) -> None:
+        if not self._coords_valid(latitude, longitude):
+            return
+
+        info = self._nodes.get(from_id)
+        record = NodePosition(
+            from_id=from_id,
+            latitude=latitude,
+            longitude=longitude,
+            timestamp=time.time(),
+            channel_index=channel_index,
+            channel_name=channel_name,
+            from_short=self._name(from_id),
+            long_name=info.long_name if info else self._name(from_id, "long"),
+            altitude=altitude,
+        )
+        with self._lock:
+            self._positions[from_id] = record
+        self._emit({"type": "position", **record.__dict__})
+
+    def _refresh_position_node_names(self, from_id: int) -> None:
+        with self._lock:
+            pos = self._positions.get(from_id)
+            if not pos:
+                return
+            pos.from_short = self._name(from_id)
+            pos.long_name = self._name(from_id, "long")
+            payload = pos.__dict__.copy()
+        self._emit({"type": "position", **payload})
+
     def _on_message(self, client, userdata, msg) -> None:
         topic = msg.topic or ""
         with self._lock:
@@ -571,6 +708,9 @@ class MeshtasticMqttClient:
         if to_id < 0:
             to_id = BROADCAST_NUM
 
+        if from_id == self.node_number:
+            return
+
         channel_index = data.get("channel")
         if isinstance(channel_index, int) and 0 <= channel_index < CHANNEL_COUNT:
             channel_name = self._config.channels[channel_index].name
@@ -590,6 +730,7 @@ class MeshtasticMqttClient:
                 short_name=short_name,
                 long_name=long_name,
             )
+            self._refresh_position_node_names(from_id)
             self._emit(
                 {
                     "type": "node",
@@ -636,6 +777,27 @@ class MeshtasticMqttClient:
                     to_short=self._name(to_id) if to_id != BROADCAST_NUM else "broadcast",
                 )
                 self._emit({"type": "message", **chat.__dict__})
+            return
+
+        if msg_type == "position":
+            body = data.get("payload")
+            if isinstance(body, dict):
+                try:
+                    lat_i = int(body.get("latitude_i"))
+                    lon_i = int(body.get("longitude_i"))
+                except (TypeError, ValueError):
+                    lat_i = lon_i = None
+                if lat_i is not None and lon_i is not None:
+                    alt_raw = body.get("altitude")
+                    altitude = float(alt_raw) if alt_raw is not None else None
+                    self._store_position(
+                        from_id=from_id,
+                        latitude=lat_i / 1e7,
+                        longitude=lon_i / 1e7,
+                        channel_index=channel_index,
+                        channel_name=channel_name,
+                        altitude=altitude,
+                    )
             return
 
         summary = self._json_activity_summary(msg_type, data)
@@ -734,6 +896,11 @@ class MeshtasticMqttClient:
             )
             return
 
+        from_id = getattr(mp, "from", 0)
+        if from_id == self.node_number:
+            return
+
+        self._note_uplink_mqtt_format(mp)
         channel_index = self._channel_name_to_index.get(channel_id)
         encrypted = False
 
@@ -775,6 +942,7 @@ class MeshtasticMqttClient:
                 short_name=info.short_name or "?",
                 long_name=info.long_name or info.id,
             )
+            self._refresh_position_node_names(from_id)
             self._emit(
                 {
                     "type": "node",
@@ -826,6 +994,27 @@ class MeshtasticMqttClient:
                 channel_name=ch_name,
                 mp=mp,
             )
+            return
+
+        if port == portnums_pb2.POSITION_APP:
+            from_id = getattr(mp, "from")
+            ch_name = channel_id
+            if channel_index is None and ch_name:
+                channel_index = self._channel_name_to_index.get(ch_name)
+            try:
+                pos = mesh_pb2.Position()
+                pos.ParseFromString(mp.decoded.payload)
+                altitude = float(pos.altitude) if pos.altitude else None
+                self._store_position(
+                    from_id=from_id,
+                    latitude=pos.latitude_i / 1e7,
+                    longitude=pos.longitude_i / 1e7,
+                    channel_index=channel_index,
+                    channel_name=ch_name,
+                    altitude=altitude,
+                )
+            except Exception:
+                pass
             return
 
         from_id = getattr(mp, "from")
@@ -885,6 +1074,7 @@ class MeshtasticMqttClient:
                 "rx_count": self._mqtt_rx_count,
                 "last_topic": self._last_mqtt_topic,
                 "last_rx_at": self._last_mqtt_rx_at,
+                "uplink_mqtt_encrypted": self._uplink_mqtt_encrypted,
             }
 
     def get_nodes(self) -> list[dict[str, Any]]:
@@ -897,6 +1087,10 @@ class MeshtasticMqttClient:
             }
             for nid, n in sorted(self._nodes.items())
         ]
+
+    def get_positions(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [p.__dict__ for p in sorted(self._positions.values(), key=lambda p: p.from_id)]
 
 
 def decompress_text_payload(payload: bytes) -> str | None:
