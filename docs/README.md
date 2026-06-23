@@ -8,6 +8,7 @@ Index de la documentation du projet. **Ces fichiers doivent rester synchronisés
 | [installation.md](installation.md) | Tous | Installation et premier démarrage |
 | [configuration.md](configuration.md) | Opérateur | Paramètres MQTT, Meshtastic, persistance |
 | [mqtt-gateway.md](mqtt-gateway.md) | Opérateur | Relier une radio Meshtastic au broker local |
+| [pi-mosquitto.md](pi-mosquitto.md) | Opérateur | Broker Mosquitto sur Raspberry Pi (LAN) |
 | [utilisation.md](utilisation.md) | Opérateur | Manipulation de l’interface web |
 | [inforoute42.md](inforoute42.md) | Opérateur | Zone Info Routes 42 (Internet) |
 | [cartographie.md](cartographie.md) | Opérateur | Carte Leaflet des signalements |

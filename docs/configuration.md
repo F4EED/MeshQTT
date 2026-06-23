@@ -15,19 +15,32 @@ Au démarrage : si **localStorage** est vide, l’interface charge `data/setting
 
 | Paramètre | Exemple | Description |
 |-----------|---------|-------------|
-| Broker | `127.0.0.1` | Adresse du broker |
+| Broker | `192.168.1.66` | Adresse du broker (Pi Mosquitto LAN) |
 | Port | `1883` | `8883` si TLS |
 | Username / Password | (vide en local) | Auth broker si configurée |
 | Root topic | `msh/EU_868` | Préfixe des topics Meshtastic (réseau **Gaulix**, crossband) |
 
-Le root topic **Gaulix** est `msh/EU_868` — **identique quelle que soit la bande** du nœud (433 ou 868 MHz) : le crossband est assuré par le serveur MQTT. Ne pas utiliser le suffixe `/2/e/` du broker public Meshtastic.
+Le root topic **Gaulix** est `msh/EU_868` — **identique quelle que soit la bande** du nœud (433 ou 868 MHz) : le crossband est assuré par le serveur MQTT.
 
-Exemples de topics complets :
+Le **firmware Meshtastic** ajoute ensuite un segment fixe `/2/` dans les topics MQTT :
 
-- Abonnement : `msh/EU_868/Fr_Balise/#`
-- Publication : `msh/EU_868/Fr_Balise/!a1b2c3d4`
+| Mode radio | Topic complet (ex. canal D_Ligerien) |
+|------------|--------------------------------------|
+| **JSON enabled** (uplink courant) | `msh/EU_868/2/json/D_Ligerien/!node` |
+| **Protobuf** (JSON désactivé) | `msh/EU_868/2/e/D_Ligerien/!node` |
 
-Ancien format `msh/EU_868/2/e/` ou `msh/EU/433/2/e/` : migré automatiquement vers `msh/EU_868/` à l'enregistrement.
+MeshQTT s’abonne aux deux formats (`2/json/` et `2/e/`) via **wildcard** `{root}2/e/#` et `{root}2/json/#` : **tous les canaux** remontés par la gateway sont reçus, pas seulement le canal d’envoi actif.
+
+Exemples d’abonnements MeshQTT :
+
+- `msh/EU_868/2/json/D_Ligerien/#`
+- `msh/EU_868/2/e/Fr_Balise/#`
+
+Publication MeshQTT (downlink protobuf) : `{root}/2/e/{canal}/{node_id}` — avec le **même root** que la radio.
+
+Si le root se termine par `/` (ex. `msh/EU_868/`), le firmware Meshtastic produit un **double slash** : `msh/EU_868//2/e/Fr_Balise/!node`. MeshQTT suit désormais la même règle (concaténation `root + "/2/e/"`).
+
+Sur la radio, root topic **`msh/EU_868`** sans slash final évite le double slash ; les deux formats restent supportés à la réception.
 
 Guide pas à pas pour une **radio gateway** : [mqtt-gateway.md](mqtt-gateway.md).
 

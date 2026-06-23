@@ -14,6 +14,8 @@ Radio Meshtastic  ←→  mesh LoRa  ←→  autres nœuds
 
 MeshQTT ne parle pas en LoRa : il simule un nœud via MQTT. Une **gateway** (nœud avec module MQTT activé) fait le pont entre le mesh radio et le broker.
 
+> **Broker sur Raspberry Pi** : voir [pi-mosquitto.md](pi-mosquitto.md) (ex. `192.168.1.66`). La radio pointe vers l’IP du Pi ; MeshQTT sur le PC utilise la **même** adresse, pas `127.0.0.1`.
+
 ## Broker Mosquitto sur cette machine
 
 | Paramètre | Valeur |
@@ -37,11 +39,11 @@ Dans l’application Meshtastic ou via CLI : **Module config → MQTT**.
 | Paramètre | Valeur |
 |-----------|--------|
 | **MQTT activé** | Oui |
-| **Adresse (Address)** | IP **LAN** du PC qui héberge Mosquitto (ex. `192.168.1.74`) |
+| **Adresse (Address)** | IP **LAN** du broker (ex. `192.168.1.66` sur le Pi) — **sans** `:1883` dans ce champ |
 | **Port** | `1883` |
 | **Utilisateur / mot de passe** | Laisser **vide** |
 | **Root topic** | Identique à MeshQTT : **`msh/EU_868`** (réseau Gaulix, crossband) |
-| **Chiffrement MQTT** | **Activé** (recommandé ; MeshQTT déchiffre avec les clés de canal) |
+| **TLS / chiffrement MQTT** (connexion au broker) | **Désactivé** pour Mosquitto local sans certificat (Pi ou Docker). Si activé avec le port 1883, le test Android expire souvent après **5000 ms**. |
 
 > **Important** : ne pas mettre `127.0.0.1` sur la radio — « localhost » désigne la radio elle-même, pas votre PC.
 
@@ -61,7 +63,7 @@ Menu **MQTT** (ou `data/settings.json`) :
 
 | Paramètre | Valeur |
 |-----------|--------|
-| Broker | `127.0.0.1` (correct depuis le PC) |
+| Broker | `192.168.1.66` |
 | Port | `1883` |
 | Username / Password | vides |
 | Root topic | `msh/EU_868` |
@@ -71,7 +73,7 @@ Exemple actuel (`data/settings.json`) :
 ```json
 {
   "mqtt": {
-    "broker": "127.0.0.1",
+    "broker": "192.168.1.66",
     "port": 1883,
     "username": "",
     "password": "",
@@ -91,12 +93,20 @@ Le réseau **Gaulix** préconise :
 
 Laisser la valeur par défaut côté radio si elle propose déjà `msh/EU_868`.
 
-Topics Meshtastic sur Gaulix :
+Le firmware Meshtastic **ajoute** `/2/json/` ou `/2/e/` après ce root (segment fixe, pas une erreur de config).
 
-- Abonnement gateway : `msh/EU_868/{nom_canal}/#`
-- Publication : `msh/EU_868/{nom_canal}/{node_id}`
+| Réglage gateway | Topic uplink (ex.) |
+|-----------------|-------------------|
+| JSON enabled + uplink | `msh/EU_868/2/json/D_Ligerien/!node` |
+| JSON off + uplink | `msh/EU_868/2/e/D_Ligerien/!node` ou `msh/EU_868//2/e/…` si root avec `/` final |
 
-> Ne pas confondre avec le broker public Meshtastic (`msh/EU_868/2/e/`…) — format différent.
+MeshQTT écoute ces topics et décode le **JSON** ou le **protobuf**.
+
+| Réglage radio | Recommandation |
+|---------------|----------------|
+| Root topic | `msh/EU_868` |
+| Uplink enabled | Oui (par canal utilisé) |
+| JSON enabled | Oui ou non — MeshQTT gère les deux |
 
 ## Canaux et clés — alignement obligatoire
 
@@ -129,9 +139,10 @@ Les canaux configurés dans MeshQTT (**Réglages Meshtastic**) doivent correspon
 | Symptôme | Piste |
 |----------|--------|
 | Radio ne se connecte pas au broker | Mauvaise IP (127.0.0.1), firewall, Mosquitto arrêté |
+| Test Android « Délai expiré 5000 ms » | **TLS activé** alors que le broker est en 1883 sans certificat ; ou téléphone pas sur le même WiFi que le Pi ; adresse avec `:1883` dans le champ Adresse |
 | MeshQTT connecté mais pas de nœuds | Pas de gateway MQTT active sur le mesh |
 | Messages illisibles / erreur déchiffrement | Clé PSK différente entre radio et MeshQTT |
-| Envoi OK, rien sur le mesh | Nom de canal différent, ou pas de gateway relais |
+| Envoi OK, rien sur le mesh | Nom de canal différent, pas de gateway relais, ou souci **`//` vs `/`** dans le topic (voir [depannage.md](depannage.md)) |
 
 Voir [depannage.md](depannage.md) pour le détail.
 

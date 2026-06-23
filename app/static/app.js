@@ -133,7 +133,7 @@ let bundledPresetsData = null;
 
 const DEFAULT_SETTINGS = {
   mqtt: {
-    broker: "127.0.0.1",
+    broker: "192.168.1.66",
     port: 1883,
     username: "",
     password: "",
@@ -257,7 +257,7 @@ function migrateLocalMqtt(mqtt) {
   if (mqtt.broker === "mqtt.meshtastic.org" || mqtt.broker === "mqtt.meshtastic.com") {
     return {
       ...mqtt,
-      broker: "127.0.0.1",
+      broker: "192.168.1.66",
       username: "",
       password: "",
     };
@@ -2344,19 +2344,22 @@ async function loadBundledSettingsFromServer() {
 }
 
 async function loadSettings() {
+  const server = await loadBundledSettingsFromServer();
   const local = loadLocalSettings();
   if (local) {
-    settings = local;
-    if (settings.meshtastic) {
-      settings.meshtastic.channels = normalizeChannelsList(settings.meshtastic.channels);
-    }
+    settings = mergeSettings(server, local);
+    // MQTT : settings.json serveur prime (évite localStorage bloqué sur 127.0.0.1)
+    settings.mqtt = { ...local.mqtt, ...server.mqtt };
   } else {
-    settings = await loadBundledSettingsFromServer();
-    saveLocalSettings(settings);
+    settings = server;
+  }
+  if (settings.meshtastic?.channels) {
+    settings.meshtastic.channels = normalizeChannelsList(settings.meshtastic.channels);
   }
   if (settings.mqtt?.root_topic) {
     settings.mqtt.root_topic = normalizeRootTopic(settings.mqtt.root_topic);
   }
+  saveLocalSettings(settings);
   updateSendChannelSelect(settings.meshtastic);
   applyTheme(normalizeTheme(settings.ui?.theme));
   // applyInforouteEnabled(isInforouteEnabled());
@@ -2583,6 +2586,11 @@ function connectWebSocket() {
         long_name: data.long_name || data.user_id,
       });
       updateNodesList();
+    } else if (data.type === "activity") {
+      const ch = channelLabel(data);
+      appendSystem(
+        `↓ MQTT ${ch}${data.from_short || "?"} — ${data.text || data.kind || "activité"}`
+      );
     } else if (data.type === "error") {
       appendSystem("Erreur : " + data.message);
     }
@@ -2608,6 +2616,13 @@ async function init() {
   applyTheme(getStoredTheme());
 
   connectWebSocket();
+
+  const hasActiveChannel = settings?.meshtastic?.channels?.some(
+    (ch) => ch.role !== "DESACTIVE" || ch.enabled
+  );
+  if (hasActiveChannel) {
+    await connectToMesh().catch(() => {});
+  }
 
   fetch("/api/status")
     .then((r) => (r.ok ? r.json() : null))

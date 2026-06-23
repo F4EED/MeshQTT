@@ -95,7 +95,7 @@ def default_channels() -> list[dict[str, Any]]:
 
 DEFAULTS: dict[str, Any] = {
     "mqtt": {
-        "broker": "127.0.0.1",
+        "broker": "192.168.1.66",
         "port": 1883,
         "username": "",
         "password": "",

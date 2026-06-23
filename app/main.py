@@ -17,16 +17,18 @@ from pydantic import BaseModel, Field, field_validator
 from app.constants import validate_mesh_text_message
 # Info Routes 42 — desactive pour le moment
 # from app.inforoute42 import fetch_inforoute42_bulletin
+from app.events import WsEventHub
 from app.mqtt_client import AsyncMeshtasticBridge
 from app.presets import load_bundled_presets, save_bundled_presets
 from app.settings import CHANNEL_COUNT, load_settings, normalize_meshtastic, save_settings, settings_to_mqtt_config
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+event_hub = WsEventHub()
 bridge = AsyncMeshtasticBridge()
 
 
 class MqttSettings(BaseModel):
-    broker: str = "127.0.0.1"
+    broker: str = "192.168.1.66"
     port: int = 1883
     username: str = ""
     password: str = ""
@@ -115,10 +117,17 @@ class ConnectRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
-    queue: asyncio.Queue = asyncio.Queue()
-    bridge.bind_loop(loop, queue)
-    app.state.event_queue = queue
+    bridge.bind_loop(loop, event_hub.publish)
+    app.state.event_hub = event_hub
+
+    settings = load_settings()
+    config = settings_to_mqtt_config(settings)
+    if config.enabled_channels():
+        await asyncio.to_thread(bridge.client.connect, config)
+
     yield
+
+    bridge.client.disconnect()
 
 
 app = FastAPI(title="MeshQTT", lifespan=lifespan)
@@ -203,6 +212,7 @@ async def api_status():
         "node_name": bridge.client.node_name if cfg.node_id else None,
         "short_name": mesh.get("short_name"),
         "long_name": mesh.get("long_name"),
+        **bridge.client.get_rx_stats(),
     }
 
 
@@ -215,6 +225,17 @@ async def api_mqtt_health():
     port = int(mqtt.get("port", 1883))
 
     def _probe() -> dict[str, Any]:
+        hint = None
+        if broker.lower() == "localhost":
+            try:
+                resolved = socket.getaddrinfo(broker, port, type=socket.SOCK_STREAM)
+                if resolved and resolved[0][4][0] == "::1":
+                    hint = (
+                        "Sur Windows, « localhost » peut résoudre en ::1 (autre Mosquitto que Docker). "
+                        "Utilisez 127.0.0.1 ou l'IP LAN du PC (ex. 192.168.x.x)."
+                    )
+            except OSError:
+                pass
         try:
             with socket.create_connection((broker, port), timeout=3):
                 pass
@@ -223,10 +244,10 @@ async def api_mqtt_health():
                 "broker": broker,
                 "port": port,
                 "reachable": True,
+                "hint": hint,
             }
         except OSError as exc:
-            hint = None
-            if broker in ("127.0.0.1", "localhost", "::1") and port == 1883:
+            if hint is None and broker in ("127.0.0.1", "localhost", "::1") and port == 1883:
                 hint = (
                     "Un seul Mosquitto doit écouter sur 1883. "
                     "Dans MeshQTT : docker compose up -d (conteneur meshqtt-mosquitto)."
@@ -315,9 +336,9 @@ async def api_waypoint(body: WaypointRequest):
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
-    queue: asyncio.Queue = app.state.event_queue
+    queue = event_hub.subscribe()
 
-    async def forward_events():
+    async def forward_events() -> None:
         while True:
             event = await queue.get()
             await ws.send_text(json.dumps(event, default=str))
@@ -327,7 +348,10 @@ async def websocket_endpoint(ws: WebSocket):
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:
+        pass
+    finally:
         task.cancel()
+        event_hub.unsubscribe(queue)
 
 
 if __name__ == "__main__":

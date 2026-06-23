@@ -61,7 +61,7 @@ Laisser la fenêtre PowerShell ouverte, ou utiliser un gestionnaire de processus
 ## Premier accès
 
 1. Ouvrir l’URL ci-dessus
-2. Aller dans **MQTT** → broker `127.0.0.1`, port `1883`, root topic **`msh/EU_868`** (réseau Gaulix)
+2. Aller dans **MQTT** → broker `192.168.1.66`, port `1883`, root topic **`msh/EU_868`** (réseau Gaulix)
 3. Aller dans **Meshtastic** → canaux, nom court, ID nœud
 4. Cliquer **Connecter**
 

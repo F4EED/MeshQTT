@@ -49,6 +49,42 @@ docker compose up -d
 Le conteneur attendu pour MeshQTT : **`meshqtt-mosquitto`** (`0.0.0.0:1883->1883/tcp`).
 Un conteneur Mosquitto **sans** mapping de port (`Ports` vide) n'est pas joignable depuis MeshQTT sur le PC.
 
+## Messages visibles sur Mosquitto mais pas dans MeshQTT
+
+1. **MeshQTT connecté ?** La barre de statut doit afficher « Connecté » (connexion auto au démarrage si des canaux sont actifs). Sinon : bouton **Connecter**.
+
+2. **Même broker ?** Sur Windows, `localhost` peut pointer vers `::1` (WSL / autre Mosquitto) alors que MeshQTT utilise `127.0.0.1` (Docker `meshqtt-mosquitto`). Configurez le **même** hôte partout : `127.0.0.1` ou l’IP LAN du PC (`192.168.x.x`). Diagnostic : [http://127.0.0.1:8080/api/mqtt/health](http://127.0.0.1:8080/api/mqtt/health)
+
+3. Vérifier le **topic** avec `mosquitto_sub` **sur le broker MeshQTT** :
+
+   ```powershell
+   docker exec -it meshqtt-mosquitto mosquitto_sub -h localhost -t "msh/EU_868/#" -v
+   ```
+
+4. Topic attendu avec firmware Meshtastic : `msh/EU_868/2/json/{canal}/!node` ou `…/2/e/…` — le **`/2/`** est normal (ajouté par la radio).
+
+5. **Nom de canal** identique dans MeshQTT et sur la radio (`D_Ligerien`, etc.).
+
+6. **Uplink enabled** sur le canal côté gateway.
+
+7. Redémarrer uvicorn après mise à jour du backend. La reconnexion MQTT est automatique au démarrage du serveur.
+
+8. **Diagnostic MeshQTT** : [http://127.0.0.1:8080/api/status](http://127.0.0.1:8080/api/status) affiche `rx_count` et `last_topic`. Si `rx_count` reste à **0** alors que MQTT Explorer voit des messages, ce n’est **pas le même broker** (souvent `localhost` ≠ `127.0.0.1` sous Windows). Dans MQTT Explorer, connectez-vous à la **même IP** que dans les paramètres MeshQTT.
+
+## Souci de `//` à la place de `/` dans les topics
+
+Symptôme typique : la radio publie sur `msh/EU_868//2/e/Fr_Balise/!node` (deux slashes après le root) alors qu’un client envoie sur `msh/EU_868/2/e/Fr_Balise/!node` (un seul slash). En MQTT ce ne sont **pas** les mêmes topics — uplink et downlink peuvent rater.
+
+**Cause** : le firmware Meshtastic concatène `root_topic` + `/2/e/`. Si le root se termine déjà par `/` (ex. `msh/EU_868/`), on obtient un **double slash** : `msh/EU_868//2/e/…`.
+
+**Correctifs** :
+
+1. **MeshQTT** (depuis la correction topics) publie et s’abonne comme le firmware (`root + "/2/e/"`), donc avec `//` si le root a un slash final.
+2. **Sur la radio**, préférer root topic **`msh/EU_868`** **sans** slash final → topics propres : `msh/EU_868/2/e/…`
+3. Vérifier dans MQTT Explorer ou les logs Pi : comparer exactement les chaînes de topic (compter les `/`).
+
+Exemple gateway Pi : `/var/lib/meshtastic-mqtt-capture/meshtastic-YYYYMMDD.log`
+
 ## Déchiffrement échoué
 
 La clé PSK du canal dans MeshQTT doit correspondre à celle du mesh. Canal sans clé (`key` vide ou `AQ==`) = non chiffré.

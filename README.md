@@ -64,7 +64,7 @@ flowchart TB
 ├────────────────────────────┬────────────────────────────────────┤
 │  MeshQTT (navigateur)      │  Radio Meshtastic (gateway)        │
 ├────────────────────────────┼────────────────────────────────────┤
-│  Broker : 127.0.0.1        │  Broker : IP LAN du PC             │
+│  Broker : 192.168.1.66     │  Broker : 192.168.1.66 (Pi)        │
 │  Port   : 1883             │  Port   : 1883                     │
 │  Topic  : msh/EU_868       │  Topic  : identique (Gaulix)       │
 │  Auth   : (vide)           │  Auth   : (vide)                   │
@@ -88,7 +88,7 @@ Exemples de topics :
 - Abonnement : `msh/EU_868/Fr_Balise/#`
 - Publication : `msh/EU_868/Fr_Balise/!a1b2c3d4`
 
-> Ne pas confondre avec le broker public Meshtastic (`msh/EU_868/2/e/`…) — format différent. Les anciens topics (`msh/EU_868/2/e/`, `msh/EU/433/2/e/`) sont migrés automatiquement vers `msh/EU_868/` à l'enregistrement.
+> Root topic **`msh/EU_868`** sans slash final. Avec un `/` en trop (`msh/EU_868/`), le firmware produit `msh/EU_868//2/e/…` (**double slash**) — topic MQTT différent de `msh/EU_868/2/e/…`. Voir [depannage.md](depannage.md#souci-de--à-la-place-de--dans-les-topics).
 
 Détail des paramètres : [docs/configuration.md](docs/configuration.md)
 
@@ -219,11 +219,11 @@ docker compose up -d
 ### Checklist premier usage
 
 ```
-  [ ] Mosquitto actif     →  docker ps --filter name=meshqtt-mosquitto
-  [ ] MQTT configuré      →  127.0.0.1:1883 + root topic Gaulix : msh/EU_868
+  [ ] Mosquitto actif     →  Pi 192.168.1.66:1883 (ou docker local)
+  [ ] MQTT configuré      →  192.168.1.66:1883 + root topic Gaulix : msh/EU_868
   [ ] Canaux Meshtastic   →  noms + clés PSK alignés avec la radio
   [ ] Connecter           →  bouton en haut à droite
-  [ ] Radio gateway       →  module MQTT vers IP LAN du PC
+  [ ] Radio gateway       →  module MQTT vers 192.168.1.66
   [ ] Nœuds visibles      →  colonne de droite
 ```
 
