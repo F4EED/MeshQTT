@@ -8,3 +8,6 @@ data/settings.json
 node_modules/
 package-lock.json
 .cursor/
+
+# Tuiles OSM offline — locales, non versionnées (snapshot figé, pas de mise à jour Git)
+OSM/*/*/*.png

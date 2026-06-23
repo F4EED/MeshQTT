@@ -2,34 +2,44 @@
 
 Tuiles raster pour fond de carte **sans Internet**, format `{z}/{x}/{y}.png`.
 
-## Structure
+## Fichiers locaux (hors Git)
 
-```
-OSM/
-  6/32/22.png
-  7/65/44.png
-  ...
-  download_tiles.py
-```
+Les tuiles PNG **ne sont pas versionnées** : `git commit` / `git push` les ignore.  
+Elles restent sur votre disque dans `OSM/` une fois générées — **pas de retéléchargement** tant que vous ne supprimez pas le dossier.
 
-Environ **2 400 tuiles** (~50 Mo) pour la France métropole + Corse, zoom 6 à 10.
-
-## Téléchargement
-
-Depuis la racine du projet :
+Après un `git clone` sur une autre machine, lancer **une seule fois** :
 
 ```powershell
 python OSM/download_tiles.py
 ```
 
-Options utiles :
+Snapshot prévu : France métropole + Corse, zoom 6–10 (~2 400 tuiles, ~16 Mo). **Pas de mise à jour OSM prévue.**
+
+## Structure
+
+```
+OSM/
+  6/32/22.png          # local uniquement (.gitignore)
+  7/65/44.png
+  ...
+  download_tiles.py    # dans Git
+  README.md            # dans Git
+```
+
+## Script `download_tiles.py`
+
+```powershell
+python OSM/download_tiles.py
+```
+
+Options :
 
 ```powershell
 python OSM/download_tiles.py --zoom-min 6 --zoom-max 10 --delay 0.25
 python OSM/download_tiles.py --out D:\MonApp\OSM
 ```
 
-Le script reprend là où il s’est arrêté (tuiles déjà présentes ignorées).
+Tuiles déjà présentes = ignorées (reprise possible).
 
 ## Intégration Leaflet
 
@@ -43,12 +53,6 @@ L.tileLayer('OSM/{z}/{x}/{y}.png', {
 map.setView([46.5, 2.5], 6);
 ```
 
-Adapter le chemin selon comment l’app sert les fichiers statiques (`./OSM/…`, `/assets/OSM/…`, etc.).
-
 ## Attribution
 
 Afficher la mention **© OpenStreetMap** dans l’application (obligatoire).
-
-## Évolution
-
-Pour plus de détail, relancer avec `--zoom-max 11` ou `12` (volume bien plus important).
