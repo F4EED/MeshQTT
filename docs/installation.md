@@ -67,6 +67,8 @@ Laisser la fenêtre PowerShell ouverte, ou utiliser un gestionnaire de processus
 
 Pour brancher une **radio Meshtastic** (gateway MQTT) sur le broker local : [mqtt-gateway.md](mqtt-gateway.md).
 
+Pour le **downlink mesh** (messages vers les nœuds LoRa) : canal radio **`mqtt`** (slot 6) + downlink ON sur chaque canal utilisé — voir [mqtt-gateway.md#downlink-mesh--json-sendtext-recommandé-broker-privé](mqtt-gateway.md#downlink-mesh--json-sendtext-recommandé-broker-privé).
+
 Voir [configuration.md](configuration.md) pour le détail des paramètres.
 
 ## Mise à jour du code

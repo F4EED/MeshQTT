@@ -19,6 +19,9 @@ Au démarrage : si **localStorage** est vide, l’interface charge `data/setting
 | Port | `1883` | `8883` si TLS |
 | Username / Password | (vide en local) | Auth broker si configurée |
 | Root topic | `msh/EU_868` | Préfixe des topics Meshtastic (réseau **Gaulix**, crossband) |
+| Gateway ID | `!ba69d0fc` (optionnel) | Nœud WiFi relais MQTT → mesh ; mémorisé auto au premier uplink ; propagé à **tous les canaux** pour le downlink |
+
+Le `gateway_id` est indispensable pour envoyer sans uplink récent sur un canal. Il est persisté dans `data/settings.json` au premier message reçu depuis une gateway.
 
 Le root topic **Gaulix** est `msh/EU_868` — **identique quelle que soit la bande** du nœud (433 ou 868 MHz) : le crossband est assuré par le serveur MQTT.
 
@@ -36,7 +39,14 @@ Exemples d’abonnements MeshQTT :
 - `msh/EU_868/2/json/D_Ligerien/#`
 - `msh/EU_868/2/e/Fr_Balise/#`
 
-Publication MeshQTT (downlink protobuf) : `{root}/2/e/{canal}/{node_id}` — avec le **même root** que la radio.
+Publication MeshQTT (downlink) :
+
+| Type | Mécanisme | Topic |
+|------|-----------|-------|
+| **Broadcast** | JSON sendtext + protobuf | `…/2/json/mqtt` + `…/2/e/{canal}/!gateway` |
+| **Direct (DM)** | JSON sendtext seul (PKI) | `…/2/json/mqtt` avec `"to": <node_id>` |
+
+Diagnostic : [http://127.0.0.1:8080/api/mqtt/downlink-debug](http://127.0.0.1:8080/api/mqtt/downlink-debug)
 
 Si le root se termine par `/` (ex. `msh/EU_868/`), le firmware Meshtastic produit un **double slash** : `msh/EU_868//2/e/Fr_Balise/!node`. MeshQTT suit désormais la même règle (concaténation `root + "/2/e/"`).
 
@@ -70,7 +80,28 @@ Exemple (`data/settings.json`) :
 
 `active_channel` : index du canal par défaut pour l’envoi groupe (0–7).
 
-### Identité du nœud virtuel
+### Canal `mqtt` (index 6 — gateway Heltec)
+
+Sur la gateway WiFi, le canal **6** doit être nommé **`mqtt`** (PSK `AQ==`, uplink + downlink ON dans l’app Meshtastic). MeshQTT aligne le slot **6** dans `data/settings.json` :
+
+```json
+{ "name": "mqtt", "key": "AQ==", "role": "SECONDAIRE", "enabled": true }
+```
+
+> Uplink/downlink/position sur ce canal se règlent **sur la radio** ; MeshQTT ne stocke que nom + clé + rôle.  
+> **Broadcast** : JSON sendtext avec l’index du canal cible (`"channel": 3` pour D_Ligerien, etc.) — le canal radio **`mqtt`** (slot 6) reçoit les commandes sur `…/2/json/mqtt`.  
+> **Direct (DM)** : JSON sendtext avec `"to"` (sans `"channel"`) — chiffrement PKI côté mesh ; pas de protobuf Fr_Balise.  
+> Les index 0–7 MeshQTT doivent correspondre aux slots de la gateway pour **chaque** canal utilisé.
+
+### Downlink — checklist gateway
+
+| Canal / réglage | Downlink | Notes |
+|-----------------|----------|-------|
+| Slot **6** nommé **`mqtt`** | ON | Obligatoire pour JSON sendtext |
+| Fr_Balise, D_Ligerien, … | ON | Un downlink par canal d’envoi groupe |
+| Module MQTT → JSON enabled | ON | Broker privé, encryption OFF |
+| `gateway_id` MeshQTT | `!ba69d0fc` | ID decimal gateway dans JSON `from` |
+
 
 | Champ | Description |
 |-------|-------------|

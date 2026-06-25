@@ -158,8 +158,8 @@ const DEFAULT_SETTINGS = {
         role: "SECONDAIRE",
       },
       {
-        name: "SAP",
-        key: "QIiUp++FeMAxPd0u+d5VfKSTJA70C9fGem2Jtn4SDJs=",
+        name: "mqtt",
+        key: "AQ==",
         enabled: true,
         role: "SECONDAIRE",
       },
@@ -230,14 +230,20 @@ function bindMeshMessageInput(inputEl, countEl) {
 function normalizeRootTopic(raw) {
   let topic = String(raw || "").trim();
   if (!topic) return DEFAULT_SETTINGS.mqtt.root_topic;
-  if (topic.includes("/2/e")) {
-    topic = topic.split("/2/e")[0];
+  for (const marker of ["/2/e", "/2/json", "/2/c"]) {
+    if (topic.includes(marker)) {
+      topic = topic.split(marker)[0];
+    }
   }
   if (topic.startsWith("msh/EU/433")) {
     topic = "msh/EU_868";
   }
   topic = topic.replace(/\/+$/, "");
-  return `${topic}/`;
+  const parts = topic.split("/").filter(Boolean);
+  if (parts.length < 2 || parts[0] !== "msh" || !parts[1]) {
+    return DEFAULT_SETTINGS.mqtt.root_topic;
+  }
+  return topic;
 }
 
 function refreshSettingsFromStorage() {
@@ -2587,10 +2593,14 @@ function connectWebSocket() {
       });
       updateNodesList();
     } else if (data.type === "activity") {
-      const ch = channelLabel(data);
-      appendSystem(
-        `↓ MQTT ${ch}${data.from_short || "?"} — ${data.text || data.kind || "activité"}`
-      );
+      if (data.kind === "sent") {
+        appendSystem(data.text || "↑ MQTT envoyé");
+      } else {
+        const ch = channelLabel(data);
+        appendSystem(
+          `↓ MQTT ${ch}${data.from_short || "?"} — ${data.text || data.kind || "activité"}`
+        );
+      }
     } else if (data.type === "error") {
       appendSystem("Erreur : " + data.message);
     }

@@ -37,8 +37,10 @@ Fil des messages reçus (texte, canal, expéditeur).
 ### Direct
 
 - Sélection d’un nœud (liste à droite ou menu déroulant)
-- Message sur **canal 0** uniquement
+- Message sur **canal 0** (Fr_Balise / primaire) — chiffrement **PKI** côté mesh (Meshtastic 2.5+)
+- Downlink via **JSON sendtext** uniquement (`to` + `hopLimit`) — pas le protobuf canal Fr_Balise
 - **Envoyer direct**
+- Journal serveur : `↑ JSON sendtext DM … → !node` — confirmer la réception **sur le Tag LoRa**, pas l’écho MQTT `[PKI]` dans le fil
 
 ## Colonne centrale — Info Routes 42
 

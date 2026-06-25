@@ -79,7 +79,7 @@ Symptôme typique : la radio publie sur `msh/EU_868//2/e/Fr_Balise/!node` (deux 
 
 **Correctifs** :
 
-1. **MeshQTT** (depuis la correction topics) publie et s’abonne comme le firmware (`root + "/2/e/"`), donc avec `//` si le root a un slash final.
+1. **MeshQTT** mémorise le root depuis l’uplink (`inferred_mqtt_root` dans `/api/mqtt/downlink-debug`) et republie sur le **même topic** que la gateway (ex. `msh/EU_868//2/e/D_Ligerien/!a1d7795c`), pas sur `msh/EU_868/2/e/…` seul.
 2. **Sur la radio**, préférer root topic **`msh/EU_868`** **sans** slash final → topics propres : `msh/EU_868/2/e/…`
 3. Vérifier dans MQTT Explorer ou les logs Pi : comparer exactement les chaînes de topic (compter les `/`).
 
@@ -89,6 +89,27 @@ Exemple gateway Pi : `/var/lib/meshtastic-mqtt-capture/meshtastic-YYYYMMDD.log`
 
 MeshQTT publie bien sur le broker (topic `msh/EU_868//2/e/{canal}/!votre_noeud`) — la gateway doit **relayer** vers le LoRa.
 
+**Gateway MQTT ≠ émetteur mesh** : le journal MeshQTT peut afficher `relayer par !a1d7795c` et `downlink sur !a1d7795c (pas !d75da807)`. Le downlink protobuf doit être activé sur **!a1d7795c** (radio WiFi connectée au broker), pas sur le nœud distant qui parle en LoRa. Diagnostic : `http://127.0.0.1:8080/api/mqtt/downlink-debug`.
+
+**Si protobuf visible dans MQTT Explorer mais rien sur le mesh** (cas fréquent broker privé) : activer **JSON** sur la gateway, créer un canal radio **`mqtt`** avec downlink, redémarrer. MeshQTT envoie alors `JSON sendtext` sur `msh/EU_868/2/json/mqtt` — voir [mqtt-gateway.md](mqtt-gateway.md#downlink-mesh--json-sendtext-recommandé-broker-privé).
+
+**Branche MQTT `2/` sans `msh/EU_868`** : root topic corrompu dans le navigateur. Corriger **Root topic** = `msh/EU_868`, reconnecter.
+
+**Branches `msh/RU_868` ou `mesh/EU_868` sur le broker** : typos sur une radio (RU = Russie, mesh = faute de frappe). Corriger **toutes** les radios sur **`msh/EU_868`**. MeshQTT ne publie plus sur ces variantes ; les anciens messages restent jusqu’à expiration Mosquitto.
+
+**Segment vide dans MQTT Explorer** (`msh/EU_868//2/e/…`) : double slash `//` affiché comme dossier vide — corrigé (plus de publication parasite au démarrage serveur ; chemin standard `msh/EU_868/2/e/…`).
+
+**« ↓ MQTT sendtext » après envoi** : écho MQTT normal (MeshQTT s’abonne à `2/json/#`) — **ce n’est pas** une confirmation de réception mesh. Si le nœud LoRa hors-ligne ne reçoit rien : canal radio **`mqtt`** + downlink sur **!ba69d0fc**, et **index 0–7 identiques** entre MeshQTT et la gateway pour le canal cible (ex. D_Ligerien = 3, Fr_Balise = 0).
+
+```powershell
+cd C:\MeshQTT
+# Exemple D_Ligerien (index 3) — adapter --channel pour les autres canaux
+.\.venv\Scripts\python scripts\mqtt_sendtext_test.py --channel 3 --text "Test direct mesh"
+.\.venv\Scripts\python scripts\mqtt_sendtext_test.py --channel-name Fr_Balise --text "Test Fr_Balise"
+```
+
+Si ce test échoue aussi, le problème est côté **gateway** (canal `mqtt` manquant, JSON OFF, ou downlink OFF) — pas MeshQTT.
+
 1. **Downlink enabled** sur le **même canal** que l’envoi (app Meshtastic → Canaux → ex. Fr_BlaBla → Downlink → Envoyer).
 
 2. **Nom de canal** strictement identique (`Fr_BlaBla`, pas une variante).
@@ -96,16 +117,41 @@ MeshQTT publie bien sur le broker (topic `msh/EU_868//2/e/{canal}/!votre_noeud`)
 3. **Clé PSK** identique dans MeshQTT et sur la radio pour ce canal.
 
 4. **Chiffrement MQTT** sur la gateway (Module MQTT → *Encryption enabled*) :
-   - **Désactivé** (courant sur broker local Pi) → paquets **decoded** en downlink ; MeshQTT envoie `decoded` pour les canaux `AQ==`
-   - **Activé** → paquets **chiffrés** obligatoires ; MeshQTT s’aligne sur l’uplink reçu ou chiffre si PSK explicite
+   - **Désactivé** (courant sur broker local Pi) → downlink **decoded** (format Meshtastic natif)
+   - **Activé** → downlink **chiffré** ; MeshQTT bascule après réception d’un uplink chiffré sur ce broker
 
 5. **Gateway en ligne** : WiFi OK, MQTT connecté au **même** broker (`192.168.1.66`). **Proxy client MQTT désactivé** si la radio a le WiFi (gateway directe).
 
-6. Topic downlink : `msh/EU_868/2/e/{canal}/!votre_noeud` **et** variante `msh/EU_868//2/e/…` (MeshQTT publie les deux ; s’abonne aux deux pour la réception).
+6. Topics : MeshQTT publie sur `msh/EU_868/2/e/{canal}/!votre_noeud` **et** `msh/EU_868//2/e/…`, plus le même préfixe que le dernier uplink reçu sur ce canal.
 
-7. **Downlink enabled** sur **D_Ligerien** (canal visé), puis **Envoyer** et redémarrer la radio si l’abonnement MQTT ne se met pas à jour.
+7. Journal à l’envoi : `↑ MQTT … (miroir uplink decoded)` ou `(standard decoded)` — le paquet est aussi publié sur le topic de la **gateway observée** (ex. `…/D_Ligerien/!d75da807`) avec `gateway_id` = nœud virtuel MeshQTT (`!adba3757`). Si `gateway_id` = ID de la radio WiFi, le firmware **ignore** le downlink (anti-boucle).
 
-8. Journal MeshQTT à l’envoi : `↑ MQTT … (decoded)` ou `(chiffré)` — doit correspondre au réglage *Encryption enabled* de la gateway.
+8. **Redémarrer la radio** après activation du downlink sur un canal.
+
+9. Si la config gateway est confirmée : tester un autre canal avec `--channel-name` ; script `scripts/mqtt_downlink_probe.py`.
+
+## Message direct (DM) — rien sur le WisMesh Tag
+
+Les DMs Meshtastic 2.5+ utilisent le chiffrement **PKI** (topic MQTT `…/2/json/PKI/!gateway`). MeshQTT envoie un JSON sendtext :
+
+```json
+{"from": <id décimal gateway>, "to": <id décimal destinataire>, "type": "sendtext", "payload": "…", "hopLimit": 7}
+```
+
+**Pas de protobuf** sur `Fr_Balise` pour les DMs (ignoré ou mal routé par le firmware).
+
+1. Canal radio **`mqtt`** + JSON enabled sur la gateway (comme pour le broadcast).
+2. Les nœuds doivent s’être **échangé leur nodeinfo** (PKI) — la gateway et le Tag doivent apparaître dans leurs listes de nœuds.
+3. Le Tag doit être **à portée LoRa** de la gateway Heltec.
+4. Voir `[PKI] …` dans MeshQTT ≠ preuve de réception sur le Tag (écho MQTT filtré côté serveur).
+
+Test direct :
+
+```powershell
+cd C:\MeshQTT
+# !acc36f15 = 2898726677
+.\.venv\Scripts\python scripts\mqtt_sendtext_test.py --to 2898726677 --text "Test DM"
+```
 
 ## Déchiffrement échoué
 

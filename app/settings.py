@@ -100,6 +100,7 @@ DEFAULTS: dict[str, Any] = {
         "username": "",
         "password": "",
         "root_topic": "msh/EU_868",
+        "gateway_id": "",
     },
     "meshtastic": {
         "channels": default_channels(),
@@ -168,14 +169,18 @@ def normalize_ui(ui: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_root_topic(raw: str) -> str:
-    """Topic racine MQTT — réseau Gaulix : msh/EU_868 (crossband, sans /2/e/)."""
+    """Topic racine MQTT — réseau Gaulix : msh/EU_868 (crossband, sans /2/e/ ni /2/json/)."""
     root = str(raw or DEFAULTS["mqtt"]["root_topic"]).strip()
-    # Ancien format Meshtastic public (msh/EU_868/2/e/ ou msh/EU/433/2/e/) → Gaulix
-    if "/2/e" in root:
-        root = root.split("/2/e")[0]
+    # Anciens formats Meshtastic (suffixe firmware /2/e/, /2/json/, /2/c/) → root seul
+    for marker in ("/2/e", "/2/json", "/2/c"):
+        if marker in root:
+            root = root.split(marker)[0]
     if root.startswith("msh/EU/433"):
         root = "msh/EU_868"
     root = root.rstrip("/")
+    parts = [p for p in root.split("/") if p]
+    if len(parts) < 2 or parts[0] != "msh" or not parts[1]:
+        return "msh/EU_868"
     return root if root else "msh/EU_868"
 
 
@@ -187,6 +192,10 @@ def normalize_mqtt(mqtt: dict[str, Any]) -> dict[str, Any]:
         mqtt["username"] = ""
         mqtt["password"] = ""
     mqtt["root_topic"] = normalize_root_topic(mqtt.get("root_topic", ""))
+    gw = str(mqtt.get("gateway_id") or "").strip()
+    if gw and not gw.startswith("!"):
+        gw = f"!{gw.lower()}"
+    mqtt["gateway_id"] = gw
     return mqtt
 
 
@@ -230,6 +239,7 @@ def settings_to_mqtt_config(settings: dict[str, Any]):
         username=mqtt.get("username", ""),
         password=mqtt.get("password", ""),
         root_topic=mqtt["root_topic"],
+        gateway_id=mqtt.get("gateway_id", ""),
         channels=channels,
         active_channel=mesh.get("active_channel", 0),
         short_name=mesh.get("short_name", "MQTT")[:4],

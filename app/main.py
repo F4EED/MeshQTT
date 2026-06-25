@@ -123,7 +123,7 @@ async def lifespan(app: FastAPI):
     settings = load_settings()
     config = settings_to_mqtt_config(settings)
     if config.enabled_channels():
-        await asyncio.to_thread(bridge.client.connect, config)
+        await asyncio.to_thread(bridge.client.connect, config, announce=False)
 
     yield
 
@@ -273,6 +273,12 @@ async def api_nodes():
 async def api_positions():
     """Dernière position connue par nœud (mémoire serveur, depuis MQTT)."""
     return {"positions": bridge.client.get_positions()}
+
+
+@app.get("/api/mqtt/downlink-debug")
+async def api_mqtt_downlink_debug():
+    """Diagnostic downlink : gateway MQTT vs émetteur mesh par canal."""
+    return bridge.client.get_downlink_debug()
 
 
 def _apply_client_settings(body: ConnectRequest | None) -> dict[str, Any]:

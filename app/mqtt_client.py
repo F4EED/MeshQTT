@@ -37,6 +37,7 @@ from app.settings import CHANNEL_COUNT, default_channel_slot
 MESHTASTIC_FW_CRYPT = "/2/e/"
 MESHTASTIC_FW_JSON = "/2/json/"
 MESHTASTIC_FW_LEGACY = "/2/c/"
+MESHTASTIC_PKI_CHANNEL = "PKI"
 MESHTASTIC_TOPIC_PREFIXES = ("2/json/", "2/e/", "2/c/")
 
 
@@ -58,51 +59,99 @@ def mqtt_topic_prefix(root: str, *, json: bool = False, legacy: bool = False) ->
     return mqtt_root_raw(root) + segment
 
 
+def _topic_has_segment(topic: str, segment: str) -> bool:
+    return segment.lower() in (topic or "").lower()
+
+
+def infer_mqtt_root_from_topic(topic: str) -> str | None:
+    """Extrait le root MQTT (msh/REGION ou mesh/REGION — jamais « msh » seul)."""
+    tl = (topic or "").lower()
+    for marker in ("/2/e/", "/2/json/", "/2/c/"):
+        i = tl.find(marker)
+        if i >= 0:
+            root = topic[:i].rstrip("/")
+            parts = [p for p in root.split("/") if p]
+            if len(parts) >= 2 and parts[0] in ("msh", "mesh") and parts[1]:
+                return f"{parts[0]}/{parts[1]}"
+    return None
+
+
 def mqtt_subscribe_topics(root: str) -> list[str]:
-    """Wildcards d'abonnement — toujours les variantes /2/e/ et //2/e/ (root avec ou sans slash)."""
+    """Wildcards d'abonnement — root configuré uniquement (msh/EU_868/2/e/# …)."""
     base = mqtt_root_raw(root).rstrip("/")
     topics: list[str] = []
-    for segment in (MESHTASTIC_FW_CRYPT, MESHTASTIC_FW_JSON, MESHTASTIC_FW_LEGACY):
-        topics.append(f"{base}{segment}#")
-        topics.append(f"{base}/{segment}#")
+    for json_flag, legacy in ((False, False), (True, False), (False, True)):
+        topics.append(mqtt_topic_prefix(base, json=json_flag, legacy=legacy) + "#")
+        raw = mqtt_root_raw(root)
+        if raw.endswith("/"):
+            topics.append(mqtt_topic_prefix(raw, json=json_flag, legacy=legacy) + "#")
+    return list(dict.fromkeys(topics))
+
+
+def mqtt_downlink_protobuf_topic(root: str, channel_name: str, node_name: str) -> str:
+    """Topic protobuf downlink — root + /2/e/ (comme mqtt_topic_prefix firmware)."""
+    return mqtt_topic_prefix(root, json=False) + f"{channel_name}/{node_name}"
+
+
+def mqtt_downlink_json_sendtext_topic(root: str) -> str:
+    """Topic JSON sendtext — root + /2/json/mqtt (doc Meshtastic)."""
+    return mqtt_topic_prefix(root, json=True) + "mqtt"
+
+
+def mqtt_downlink_json_sendtext_topics(root: str) -> list[str]:
+    """Topics JSON sendtext — avec et sans slash final (doc Meshtastic)."""
+    topics = [mqtt_downlink_json_sendtext_topic(root)]
+    raw = mqtt_root_raw(root).rstrip("/")
+    topics.append(f"{raw}/2/json/mqtt/")
     return list(dict.fromkeys(topics))
 
 
 def mqtt_publish_topics(root: str, channel_name: str, node_name: str) -> list[str]:
-    """Topics downlink protobuf — variantes slash simple et double (firmware Meshtastic)."""
-    base = mqtt_root_raw(root).rstrip("/")
+    """Topic downlink protobuf — msh/EU_868/2/e/… (sans segment vide //)."""
     tail = f"{channel_name}/{node_name}"
-    return list(
-        dict.fromkeys(
-            [
-                f"{base}{MESHTASTIC_FW_CRYPT}{tail}",
-                f"{base}/{MESHTASTIC_FW_CRYPT}{tail}",
-            ]
-        )
-    )
+    return [mqtt_topic_prefix(root, json=False) + tail]
 
 
-def parse_channel_from_meshtastic_topic(topic: str, root: str) -> str:
+def parse_channel_from_meshtastic_topic(topic: str, root: str = "") -> str:
     """Extrait le nom de canal depuis un topic Meshtastic (…/2/json/Canal/!node)."""
+    tl = (topic or "").lower()
+    for marker in ("/2/json/", "/2/e/", "/2/c/"):
+        i = tl.find(marker)
+        if i >= 0:
+            rest = topic[i + len(marker) :]
+            return rest.split("/")[0] if rest else ""
     base = mqtt_root_raw(root).rstrip("/")
-    if topic.startswith(base):
-        rest = topic[len(base) :]
-    else:
-        return ""
-    rest = rest.lstrip("/")
-    for segment in MESHTASTIC_TOPIC_PREFIXES:
-        if rest.startswith(segment.lstrip("/")) or rest.startswith(segment):
-            if rest.startswith(segment):
-                rest = rest[len(segment) :]
-            else:
-                rest = rest[len(segment.lstrip("/")) :]
-            break
-    return rest.split("/")[0] if rest else ""
+    if base and topic.startswith(base):
+        rest = topic[len(base) :].lstrip("/")
+        for segment in MESHTASTIC_TOPIC_PREFIXES:
+            seg = segment.lstrip("/")
+            if rest.lower().startswith(seg.lower()):
+                rest = rest[len(seg) :].lstrip("/")
+                break
+        return rest.split("/")[0] if rest else ""
+    return ""
 
 
-def is_meshtastic_json_topic(topic: str, root: str) -> bool:
+def is_meshtastic_downlink_json_topic(topic: str) -> bool:
+    """Topic JSON sendtext downlink exact : …/2/json/mqtt (sans /!node après)."""
+    tl = (topic or "").lower().rstrip("/")
+    marker = "/json/mqtt"
+    idx = tl.rfind(marker)
+    if idx < 0:
+        return False
+    return tl[idx + len(marker) :] == ""
+
+
+def is_meshtastic_json_topic(topic: str, root: str = "") -> bool:
+    tl = (topic or "").lower()
+    if "/2/json/" not in tl:
+        return False
+    if is_meshtastic_downlink_json_topic(topic):
+        return False
+    if tl.startswith("msh/") or tl.startswith("mesh/"):
+        return True
     base = mqtt_root_raw(root).rstrip("/")
-    return topic.startswith(base) and "/2/json/" in topic
+    return bool(base) and tl.startswith(base.lower())
 
 
 def packet_has_decoded(mp) -> bool:
@@ -155,6 +204,7 @@ class MqttConfig:
     username: str = ""
     password: str = ""
     root_topic: str = "msh/EU_868"
+    gateway_id: str = ""
     channels: list[ChannelConfig] = field(default_factory=lambda: [
         channel_slot_to_config(default_channel_slot(i)) for i in range(CHANNEL_COUNT)
     ])
@@ -257,6 +307,18 @@ class MeshtasticMqttClient:
         self._last_mqtt_rx_at: float | None = None
         # None = auto ; True/False = format uplink MQTT observé (protobuf chiffré ou decoded)
         self._uplink_mqtt_encrypted: bool | None = None
+        self._last_uplink_topic_by_channel: dict[str, str] = {}
+        self._last_uplink_hop_by_channel: dict[str, int] = {}
+        # Enveloppe MQTT brute du dernier texte reçu par canal (downlink miroir)
+        self._last_uplink_envelope_bytes: dict[str, bytes] = {}
+        self._last_uplink_was_encrypted: dict[str, bool] = {}
+        self._last_uplink_channel_id: dict[str, str] = {}
+        self._last_uplink_gateway_id: dict[str, str] = {}
+        self._last_uplink_sender_id: dict[str, str] = {}
+        self._last_uplink_root_by_channel: dict[str, str] = {}
+        self._inferred_mqtt_root: str | None = None
+        self._recent_outbound_texts: dict[str, float] = {}
+        self._recent_outbound_direct: dict[tuple[int, str], float] = {}
 
     @property
     def config(self) -> MqttConfig:
@@ -284,11 +346,23 @@ class MeshtasticMqttClient:
             ch.name: i for i, ch in enumerate(self._config.channels) if ch.name.strip()
         }
 
-    def connect(self, config: MqttConfig) -> None:
+    def connect(self, config: MqttConfig, *, announce: bool = True) -> None:
         self.disconnect()
         self._config = config
+        self._announce_on_connect = announce
         self._rebuild_channel_map()
         self._uplink_mqtt_encrypted = None
+        self._last_uplink_topic_by_channel = {}
+        self._last_uplink_hop_by_channel = {}
+        self._last_uplink_envelope_bytes = {}
+        self._last_uplink_was_encrypted = {}
+        self._last_uplink_channel_id = {}
+        self._last_uplink_gateway_id = {}
+        self._last_uplink_sender_id = {}
+        self._last_uplink_root_by_channel = {}
+        self._inferred_mqtt_root = None
+        self._recent_outbound_texts = {}
+        self._recent_outbound_direct = {}
         if self._config.node_id is None:
             self._config.node_id = random.randint(0x10000000, 0xFFFFFFFE)
 
@@ -427,16 +501,223 @@ class MeshtasticMqttClient:
         topics = mqtt_publish_topics(self._config.root_topic, channel_name, self.node_name)
         return topics[0]
 
-    def _publish_topics(self, channel_name: str) -> list[str]:
-        return mqtt_publish_topics(self._config.root_topic, channel_name, self.node_name)
+    def _next_packet_id(self) -> int:
+        ts_ms = int(time.time() * 1000)
+        rnd = secrets.randbelow(0x10000)
+        return ((ts_ms & 0xFFFF) << 16 | rnd) & 0xFFFFFFFF
+
+    def _downlink_data_copy(self, encoded_message, *, encrypt: bool) -> mesh_pb2.Data:
+        """Copie Data pour downlink — sans bitfield (compat gateways Meshtastic)."""
+        data = mesh_pb2.Data()
+        data.portnum = encoded_message.portnum
+        data.payload = encoded_message.payload
+        if encrypt and encoded_message.request_id:
+            data.request_id = encoded_message.request_id
+        return data
+
+    def _is_direct_message(self, destination_id: int) -> bool:
+        return destination_id != BROADCAST_NUM
+
+    def _note_outbound_text(self, text: str, destination_id: int) -> None:
+        expiry = time.time() + 12.0
+        self._recent_outbound_texts[text] = expiry
+        if self._is_direct_message(destination_id):
+            self._recent_outbound_direct[(destination_id, text)] = expiry
+
+    def _is_outbound_echo(self, text: str, to_id: int, from_id: int) -> bool:
+        now = time.time()
+        if self._recent_outbound_texts.get(text, 0) <= now:
+            return False
+        if not self._is_direct_message(to_id):
+            return True
+        if self._recent_outbound_direct.get((to_id, text), 0) <= now:
+            return False
+        gw = (self._config.gateway_id or "").strip()
+        if gw.startswith("!") and from_id == int(gw[1:], 16):
+            return True
+        return from_id == self.node_number
+
+    def _downlink_envelope_channel_id(self, channel: ChannelConfig, destination_id: int) -> str:
+        """ServiceEnvelope.channel_id — PKI pour DM (firmware Meshtastic 2.5+)."""
+        if self._is_direct_message(destination_id):
+            return MESHTASTIC_PKI_CHANNEL
+        return self._downlink_channel_id(channel)
+
+    def _downlink_channel_id(self, channel: ChannelConfig) -> str:
+        """channel_id ServiceEnvelope — reprend l'uplink observé (getGlobalId côté radio)."""
+        return self._last_uplink_channel_id.get(channel.name, channel.name)
+
+    def _store_uplink_envelope(
+        self,
+        channel_name: str,
+        payload: bytes,
+        was_encrypted: bool,
+        *,
+        sender_id: int | None = None,
+    ) -> None:
+        if not channel_name:
+            return
+        self._last_uplink_envelope_bytes[channel_name] = bytes(payload)
+        self._last_uplink_was_encrypted[channel_name] = was_encrypted
+        if sender_id:
+            self._last_uplink_sender_id[channel_name] = f"!{sender_id:08x}"
+        try:
+            env = mqtt_pb2.ServiceEnvelope()
+            env.ParseFromString(payload)
+            if env.channel_id:
+                self._last_uplink_channel_id[channel_name] = env.channel_id
+            if env.gateway_id:
+                self._last_uplink_gateway_id[channel_name] = env.gateway_id
+                self._remember_gateway_id(env.gateway_id)
+        except Exception:
+            pass
+
+    def _note_uplink_gateway_from_topic(self, channel_name: str, topic: str) -> None:
+        """Complète gateway_id depuis le topic MQTT (JSON ou protobuf)."""
+        if not channel_name or not topic:
+            return
+        parts = topic.split("/")
+        if parts and parts[-1].startswith("!"):
+            gw = parts[-1]
+            self._last_uplink_gateway_id.setdefault(channel_name, gw)
+            self._remember_gateway_id(gw)
+
+    def _remember_gateway_id(self, gateway_name: str) -> None:
+        """Mémorise l'ID gateway MQTT pour downlink sur tous les canaux."""
+        if not gateway_name.startswith("!"):
+            return
+        for _, ch in self._config.named_channels():
+            if ch.name:
+                self._last_uplink_gateway_id.setdefault(ch.name, gateway_name)
+        self._last_uplink_gateway_id.setdefault(MESHTASTIC_PKI_CHANNEL, gateway_name)
+        if self._config.gateway_id == gateway_name:
+            return
+        self._config.gateway_id = gateway_name
+        try:
+            from app.settings import load_settings, save_settings
+
+            settings = load_settings()
+            if settings.get("mqtt", {}).get("gateway_id") != gateway_name:
+                save_settings(
+                    {
+                        **settings,
+                        "mqtt": {**settings["mqtt"], "gateway_id": gateway_name},
+                    }
+                )
+        except Exception as exc:
+            logger.debug("Persistance gateway_id ignorée: %s", exc)
+
+    def _seed_downlink_state_for_all_channels(self) -> None:
+        """Prépare le downlink sur chaque canal actif (gateway config + JSON par défaut)."""
+        gw = (self._config.gateway_id or "").strip()
+        if gw:
+            for _, ch in self._config.named_channels():
+                if ch.name:
+                    self._last_uplink_gateway_id.setdefault(ch.name, gw)
+            self._last_uplink_gateway_id.setdefault(MESHTASTIC_PKI_CHANNEL, gw)
+        for _, ch in self._config.named_channels():
+            if ch.name and ch.name not in self._last_uplink_was_encrypted:
+                self._last_uplink_was_encrypted[ch.name] = False
+
+    def _gateway_for_channel(self, channel_name: str) -> str:
+        gw = self._last_uplink_gateway_id.get(channel_name) or self._config.gateway_id
+        if gw:
+            return gw
+        if self._last_uplink_gateway_id:
+            return next(iter(self._last_uplink_gateway_id.values()))
+        return ""
+
+    def _gateway_only_topics(self, channel_name: str) -> list[str]:
+        return self._publish_topics_for_channel(channel_name)
+
+    def _configured_mqtt_root(self) -> str:
+        return mqtt_root_raw(self._config.root_topic).rstrip("/")
+
+    def _json_sendtext_root(self, channel_name: str = "") -> str:
+        """Root JSON sendtext — uplink du canal, sinon config msh/EU_868."""
+        if channel_name:
+            stored = self._last_uplink_root_by_channel.get(channel_name)
+            if stored:
+                return stored.rstrip("/")
+            ref = self._last_uplink_topic_by_channel.get(channel_name)
+            if ref:
+                inferred = infer_mqtt_root_from_topic(ref)
+                if inferred:
+                    return inferred.rstrip("/")
+        for topic in self._last_uplink_topic_by_channel.values():
+            inferred = infer_mqtt_root_from_topic(topic)
+            if inferred:
+                return inferred.rstrip("/")
+        return self._configured_mqtt_root()
+
+    def _effective_mqtt_root(self) -> str:
+        """Root effectif — config msh/EU_868, ou inféré si valide (jamais « msh » seul)."""
+        cfg = self._configured_mqtt_root()
+        inf = (self._inferred_mqtt_root or "").rstrip("/")
+        if inf and infer_mqtt_root_from_topic(f"{inf}/2/e/x") == inf:
+            return inf
+        return cfg
+
+    def _note_topic_alignment(self, topic: str, channel_name: str = "") -> None:
+        root = infer_mqtt_root_from_topic(topic)
+        if root is not None:
+            self._inferred_mqtt_root = root
+            if channel_name:
+                self._last_uplink_root_by_channel[channel_name] = root.rstrip("/")
+
+    def _root_for_channel(self, channel_name: str) -> str:
+        return self._configured_mqtt_root()
+
+    def _publish_topics_for_channel(
+        self, channel_name: str, destination_id: int = BROADCAST_NUM
+    ) -> list[str]:
+        """Downlink protobuf — topic PKI pour DM, sinon canal mesh."""
+        if self._is_direct_message(destination_id):
+            gw = self._gateway_for_channel(MESHTASTIC_PKI_CHANNEL) or self._gateway_for_channel(
+                channel_name
+            )
+            cfg = self._configured_mqtt_root()
+            ref = self._last_uplink_topic_by_channel.get(MESHTASTIC_PKI_CHANNEL)
+            if ref and _topic_has_segment(ref, "/2/e/") and gw:
+                observed = (infer_mqtt_root_from_topic(ref) or "").rstrip("/")
+                if observed == cfg:
+                    prefix = ref.rsplit("/", 1)[0]
+                    return [f"{prefix}/{gw}"]
+            if gw:
+                return mqtt_publish_topics(cfg, MESHTASTIC_PKI_CHANNEL, gw)
+            return mqtt_publish_topics(cfg, MESHTASTIC_PKI_CHANNEL, self.node_name)
+
+        ref = self._last_uplink_topic_by_channel.get(channel_name)
+        gw = self._gateway_for_channel(channel_name)
+        ch_id = self._last_uplink_channel_id.get(channel_name, channel_name)
+        cfg = self._configured_mqtt_root()
+
+        if ref and _topic_has_segment(ref, "/2/e/"):
+            observed = (infer_mqtt_root_from_topic(ref) or "").rstrip("/")
+            if observed == cfg and gw:
+                prefix = ref.rsplit("/", 1)[0]
+                return [f"{prefix}/{gw}"]
+            if gw:
+                return mqtt_publish_topics(cfg, ch_id, gw)
+
+        if ref and _topic_has_segment(ref, "/2/json/"):
+            observed = (infer_mqtt_root_from_topic(ref) or cfg).rstrip("/")
+            root = observed if observed == cfg else cfg
+            if gw:
+                return mqtt_publish_topics(root, ch_id, gw)
+
+        if gw:
+            topics = mqtt_publish_topics(cfg, ch_id, gw)
+            bare = mqtt_topic_prefix(cfg, json=False) + ch_id
+            if bare not in topics:
+                topics.append(bare)
+            return topics
+
+        return mqtt_publish_topics(cfg, ch_id, self.node_name)
 
     def _subscribe_topics(self) -> list[str]:
-        """Abonnements MQTT — réception de tous les canaux (wildcard Meshtastic)."""
-        topics = mqtt_subscribe_topics(self._config.root_topic)
-        root = mqtt_root_normalized(self._config.root_topic)
-        for _, ch in self._config.named_channels():
-            topics.append(f"{root}{ch.name}/#")
-        return list(dict.fromkeys(topics))
+        """Abonnements MQTT — wildcards firmware Meshtastic uniquement."""
+        return mqtt_subscribe_topics(self._config.root_topic)
 
     def _primary_channel_index(self) -> int:
         for i, ch in enumerate(self._config.channels):
@@ -463,11 +744,156 @@ class MeshtasticMqttClient:
             self._uplink_mqtt_encrypted = False
 
     def _should_encrypt_downlink(self, channel: ChannelConfig) -> bool:
-        if self._uplink_mqtt_encrypted is not None:
-            return self._uplink_mqtt_encrypted
-        key = str(channel.key or "").strip()
-        # Broker local / Gaulix : souvent encryption MQTT désactivée → paquets decoded
-        return key not in ("", "AQ==")
+        """Chiffrer seulement si l'uplink MQTT protobuf chiffré a été observé sur ce canal."""
+        if channel.name in self._last_uplink_was_encrypted:
+            return self._last_uplink_was_encrypted[channel.name]
+        return False
+
+    def _apply_downlink_hops(self, mp) -> None:
+        """Hops pour injection MQTT → mesh (format netnutmike : hop_limit seul)."""
+        mp.hop_limit = 3
+        mp.ClearField("hop_start")
+
+    def _build_downlink_standard(
+        self,
+        channel: ChannelConfig,
+        channel_index: int,
+        destination_id: int,
+        encoded_message,
+        encrypt: bool,
+    ) -> bytes:
+        """Downlink construit (Connect / netnutmike) — gateway_id ≠ nœud WiFi gateway."""
+        channel_id = self._downlink_envelope_channel_id(channel, destination_id)
+        payload_data = self._downlink_data_copy(encoded_message, encrypt=encrypt)
+        effective_key = self._effective_channel_key(channel_index, channel)
+
+        mesh_packet = mesh_pb2.MeshPacket()
+        mesh_packet.id = self._next_packet_id()
+        setattr(mesh_packet, "from", self.node_number)
+        mesh_packet.to = destination_id
+        mesh_packet.want_ack = False
+        self._apply_downlink_hops(mesh_packet)
+
+        if encrypt:
+            channel_hash, encrypted = encrypt_payload(
+                channel.name,
+                effective_key,
+                mesh_packet.id,
+                self.node_number,
+                payload_data,
+            )
+            mesh_packet.channel = channel_hash
+            mesh_packet.encrypted = encrypted
+            mesh_packet.ClearField("decoded")
+        else:
+            mesh_packet.channel = 0
+            mesh_packet.decoded.CopyFrom(payload_data)
+            mesh_packet.ClearField("encrypted")
+
+        envelope = mqtt_pb2.ServiceEnvelope()
+        envelope.packet.CopyFrom(mesh_packet)
+        envelope.channel_id = channel_id
+        envelope.gateway_id = self.node_name
+        return envelope.SerializeToString()
+
+    def _build_downlink_from_template(
+        self,
+        channel: ChannelConfig,
+        channel_index: int,
+        destination_id: int,
+        encoded_message,
+        encrypt: bool,
+    ) -> bytes | None:
+        """Reconstruit le downlink en clonant la dernière enveloppe uplink du canal."""
+        raw = self._last_uplink_envelope_bytes.get(channel.name)
+        if not raw:
+            return None
+        if self._last_uplink_was_encrypted.get(channel.name, False) != encrypt:
+            return None
+        try:
+            env = mqtt_pb2.ServiceEnvelope()
+            env.ParseFromString(raw)
+            p = env.packet
+
+            if encrypt:
+                mesh_packet = mesh_pb2.MeshPacket()
+                mesh_packet.id = self._next_packet_id()
+                setattr(mesh_packet, "from", self.node_number)
+                mesh_packet.to = destination_id
+                mesh_packet.want_ack = False
+                self._apply_downlink_hops(mesh_packet)
+                payload_data = self._downlink_data_copy(encoded_message, encrypt=True)
+                effective_key = self._effective_channel_key(channel_index, channel)
+                channel_hash, encrypted = encrypt_payload(
+                    channel.name,
+                    effective_key,
+                    mesh_packet.id,
+                    self.node_number,
+                    payload_data,
+                )
+                mesh_packet.channel = channel_hash
+                mesh_packet.encrypted = encrypted
+                env.packet.CopyFrom(mesh_packet)
+            else:
+                # Clone minimal : hops, channel et bitfield identiques à l'uplink reçu
+                p.id = self._next_packet_id()
+                setattr(p, "from", self.node_number)
+                p.to = destination_id
+                p.want_ack = False
+                p.decoded.payload = encoded_message.payload
+                p.decoded.portnum = encoded_message.portnum
+                p.ClearField("encrypted")
+
+            # gateway_id ≠ owner.id de la radio WiFi — sinon firmware ignore le downlink
+            env.gateway_id = self.node_name
+            if not env.channel_id or self._is_direct_message(destination_id):
+                env.channel_id = self._downlink_envelope_channel_id(channel, destination_id)
+            return env.SerializeToString()
+        except Exception as exc:
+            logger.debug("Downlink miroir uplink impossible: %s", exc)
+            return None
+
+    def _publish_json_sendtext(
+        self,
+        channel_index: int,
+        destination_id: int,
+        text: str,
+        gateway_name: str,
+    ) -> list[str]:
+        """Downlink JSON sendtext — mécanisme officiel Meshtastic (firmware → sendToMesh)."""
+        from_id = int(gateway_name[1:], 16)
+        body: dict[str, Any] = {
+            "from": from_id,
+            "type": "sendtext",
+            "payload": text,
+        }
+        if self._is_direct_message(destination_id):
+            body["to"] = destination_id
+            body["hopLimit"] = 7
+        else:
+            body["channel"] = channel_index
+        payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        ch_name = (
+            self._config.channels[channel_index].name
+            if 0 <= channel_index < len(self._config.channels)
+            else ""
+        )
+        root = self._configured_mqtt_root()
+        ref = self._last_uplink_topic_by_channel.get(ch_name)
+        if ref:
+            inferred = infer_mqtt_root_from_topic(ref)
+            if inferred and inferred.rstrip("/") == root:
+                root = inferred.rstrip("/")
+        topics = mqtt_downlink_json_sendtext_topics(root)
+        for topic in topics:
+            self._client.publish(topic, payload, qos=1)
+        self._note_outbound_text(text, destination_id)
+        logger.info(
+            "MQTT JSON sendtext %s body=%s",
+            topics[0],
+            body,
+        )
+        return topics
 
     def _keys_for_channel_id(self, channel_id: str) -> list[str]:
         keys: list[str] = []
@@ -500,43 +926,96 @@ class MeshtasticMqttClient:
         assert self._client is not None
         idx, channel = self._config.resolve_send_channel(channel_index)
 
-        mesh_packet = mesh_pb2.MeshPacket()
-        mesh_packet.id = self._global_message_id
-        self._global_message_id += 1
-        setattr(mesh_packet, "from", self.node_number)
-        mesh_packet.to = destination_id
-        mesh_packet.want_ack = False
-        mesh_packet.hop_limit = 3
-        mesh_packet.hop_start = 3
+        is_text = encoded_message.portnum == portnums_pb2.TEXT_MESSAGE_APP
+        text: str | None = None
+        if is_text:
+            try:
+                text = encoded_message.payload.decode("utf-8")
+            except UnicodeDecodeError:
+                text = None
+
+        json_topics: list[str] = []
+        gw_hint = (
+            self._gateway_for_channel(MESHTASTIC_PKI_CHANNEL)
+            if self._is_direct_message(destination_id)
+            else self._gateway_for_channel(channel.name)
+        )
+        if text and gw_hint and channel.name != "mqtt":
+            json_topics = self._publish_json_sendtext(idx, destination_id, text, gw_hint)
+
+        if self._is_direct_message(destination_id):
+            to_hex = f"!{destination_id:08x}"
+            activity_parts: list[str] = []
+            if json_topics:
+                activity_parts.append(
+                    f"↑ JSON sendtext DM {json_topics[0]} → {to_hex} via {gw_hint}"
+                )
+                activity_parts.append(
+                    "confirmation mesh : réception sur le Tag (PKI), pas l'écho MQTT …/json/PKI/"
+                )
+            else:
+                activity_parts.append(
+                    f"DM non publié — gateway_id manquant pour JSON sendtext → {to_hex}"
+                )
+            self._emit(
+                {
+                    "type": "activity",
+                    "timestamp": time.time(),
+                    "from_id": self.node_number,
+                    "channel_index": idx,
+                    "channel_name": channel.name,
+                    "from_short": self._config.short_name,
+                    "kind": "sent",
+                    "text": " — ".join(activity_parts),
+                }
+            )
+            return
 
         encrypt_downlink = self._should_encrypt_downlink(channel)
-        if encrypt_downlink:
-            effective_key = self._effective_channel_key(idx, channel)
-            channel_hash, encrypted = encrypt_payload(
-                channel.name,
-                effective_key,
-                mesh_packet.id,
-                self.node_number,
-                encoded_message,
-            )
-            mesh_packet.channel = channel_hash
-            mesh_packet.encrypted = encrypted
-            downlink_mode = "chiffré"
+        payload = self._build_downlink_from_template(
+            channel, idx, destination_id, encoded_message, encrypt_downlink
+        )
+        if payload is not None:
+            downlink_mode = "miroir uplink" + (" chiffré" if encrypt_downlink else " decoded")
         else:
-            mesh_packet.decoded.CopyFrom(encoded_message)
-            mesh_packet.channel = idx
-            mesh_packet.ClearField("encrypted")
-            downlink_mode = "decoded"
+            payload = self._build_downlink_standard(
+                channel, idx, destination_id, encoded_message, encrypt_downlink
+            )
+            downlink_mode = "standard" + (" chiffré" if encrypt_downlink else " decoded")
 
-        envelope = mqtt_pb2.ServiceEnvelope()
-        envelope.packet.CopyFrom(mesh_packet)
-        envelope.channel_id = channel.name
-        envelope.gateway_id = self.node_name
-        payload = envelope.SerializeToString()
-        topics = self._publish_topics(channel.name)
+        topics = self._publish_topics_for_channel(channel.name, destination_id)
+        sender_hint = self._last_uplink_sender_id.get(channel.name, "")
         for topic in topics:
             self._client.publish(topic, payload, qos=1)
+
+        extra_mode = ""
+        if not encrypt_downlink and self._last_uplink_was_encrypted.get(channel.name) is True:
+            gw_topics = self._gateway_only_topics(channel.name)
+            if gw_topics:
+                enc_payload = self._build_downlink_standard(
+                    channel, idx, destination_id, encoded_message, True
+                )
+                for topic in gw_topics:
+                    self._client.publish(topic, enc_payload, qos=1)
+                extra_mode = " + essai chiffré (gateway)"
+
         logger.info("MQTT downlink %s (%s, %d octets)", topics[0], downlink_mode, len(payload))
+        activity_parts: list[str] = []
+        if json_topics:
+            activity_parts.append(
+                f"↑ JSON sendtext {json_topics[0]} via {gw_hint} (canal mesh {idx})"
+            )
+        activity_parts.append(f"↑ protobuf {topics[0]} ({downlink_mode}{extra_mode})")
+        if len(topics) > 1:
+            activity_parts.append(f"+{len(topics) - 1} topics protobuf")
+        if gw_hint and not json_topics:
+            activity_parts.append(f"gateway {gw_hint} (sans JSON sendtext)")
+        elif gw_hint and json_topics:
+            activity_parts.append(
+                f"confirmation mesh : JSON sur …/json/{channel.name}/!{gw_hint.lstrip('!')}"
+            )
+        if sender_hint and sender_hint != gw_hint:
+            activity_parts.append(f"émetteur mesh {sender_hint}")
         self._emit(
             {
                 "type": "activity",
@@ -546,10 +1025,7 @@ class MeshtasticMqttClient:
                 "channel_name": channel.name,
                 "from_short": self._config.short_name,
                 "kind": "sent",
-                "text": (
-                    f"↑ MQTT {topics[0]} ({downlink_mode})"
-                    + (f" (+{len(topics) - 1} variante slash)" if len(topics) > 1 else "")
-                ),
+                "text": " — ".join(activity_parts),
             }
         )
 
@@ -565,6 +1041,7 @@ class MeshtasticMqttClient:
             return
 
         self._connected = True
+        self._seed_downlink_state_for_all_channels()
         topics = self._subscribe_topics()
         for topic in topics:
             client.subscribe(topic)
@@ -595,7 +1072,8 @@ class MeshtasticMqttClient:
                 ],
             }
         )
-        self._send_node_info(BROADCAST_NUM)
+        if getattr(self, "_announce_on_connect", True):
+            self._send_node_info(BROADCAST_NUM)
 
     def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties) -> None:
         self._connected = False
@@ -681,6 +1159,14 @@ class MeshtasticMqttClient:
         if is_meshtastic_json_topic(topic, self._config.root_topic):
             self._on_message_json(topic, msg.payload)
             return
+        if _topic_has_segment(topic, "/2/json/") and msg.payload:
+            try:
+                data = json.loads(msg.payload.decode("utf-8"))
+                if isinstance(data, dict):
+                    self._on_message_json(topic, msg.payload)
+                    return
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                pass
         self._on_message_protobuf(topic, msg.payload)
 
     def _on_message_json(self, topic: str, payload: bytes) -> None:
@@ -707,6 +1193,9 @@ class MeshtasticMqttClient:
             to_id = BROADCAST_NUM
         if to_id < 0:
             to_id = BROADCAST_NUM
+
+        if is_meshtastic_downlink_json_topic(topic) or msg_type == "sendtext":
+            return
 
         if from_id == self.node_number:
             return
@@ -758,11 +1247,23 @@ class MeshtasticMqttClient:
                 text = str(raw_payload or "")
 
             if text.strip():
+                if self._is_outbound_echo(text.strip(), to_id, from_id):
+                    logger.debug("Écho MQTT ignoré (envoi récent) : %r → %s", text[:40], to_id)
+                    return
+
                 if msg_id:
                     with self._lock:
                         if msg_id in self._seen_ids:
                             return
                         self._seen_ids.add(msg_id)
+
+                if channel_name:
+                    self._note_topic_alignment(topic, channel_name or "")
+                    self._last_uplink_topic_by_channel[channel_name] = topic
+                    self._last_uplink_was_encrypted[channel_name] = False
+                    self._note_uplink_gateway_from_topic(channel_name, topic)
+                    if from_id:
+                        self._last_uplink_sender_id[channel_name] = f"!{from_id:08x}"
 
                 chat = ChatMessage(
                     timestamp=time.time(),
@@ -859,6 +1360,10 @@ class MeshtasticMqttClient:
         channel_name: str,
         mp,
     ) -> None:
+        if text.strip() and self._is_outbound_echo(text.strip(), to_id, from_id):
+            logger.debug("Écho protobuf ignoré (envoi récent) : %r → %s", text[:40], to_id)
+            return
+
         with self._lock:
             if msg_id in self._seen_ids:
                 return
@@ -900,9 +1405,21 @@ class MeshtasticMqttClient:
         if from_id == self.node_number:
             return
 
+        if from_id and channel_id:
+            self._note_topic_alignment(topic, channel_id or "")
+            self._last_uplink_topic_by_channel[channel_id] = topic
+            self._note_uplink_gateway_from_topic(channel_id, topic)
+            if channel_id == MESHTASTIC_PKI_CHANNEL:
+                self._last_uplink_was_encrypted[MESHTASTIC_PKI_CHANNEL] = False
+            if mp.hop_limit:
+                self._last_uplink_hop_by_channel[channel_id] = mp.hop_limit
+
         self._note_uplink_mqtt_format(mp)
         channel_index = self._channel_name_to_index.get(channel_id)
         encrypted = False
+        was_encrypted_on_wire = packet_needs_decrypt(mp) or (
+            bool(mp.encrypted) and not packet_has_decoded(mp)
+        )
 
         if packet_needs_decrypt(mp):
             encrypted = True
@@ -983,6 +1500,11 @@ class MeshtasticMqttClient:
                     text = mp.decoded.payload.decode("utf-8")
                 except UnicodeDecodeError:
                     text = mp.decoded.payload.hex()
+
+            if ch_name:
+                self._store_uplink_envelope(
+                    ch_name, payload, was_encrypted_on_wire, sender_id=from_id
+                )
 
             self._emit_text_message(
                 from_id=from_id,
@@ -1067,6 +1589,53 @@ class MeshtasticMqttClient:
         encoded.request_id = message_id
         encoded.payload = b"\030\000"
         self._publish_packet(destination_id, encoded)
+
+    def get_downlink_debug(self) -> dict[str, Any]:
+        """État downlink par canal (gateway MQTT vs émetteur mesh)."""
+        channels: dict[str, Any] = {}
+        for _, ch in self._config.named_channels():
+            name = ch.name
+            if not name:
+                continue
+            idx = self._channel_name_to_index.get(name)
+            gw = self._gateway_for_channel(name)
+            ch_root = self._configured_mqtt_root()
+            json_topics = mqtt_downlink_json_sendtext_topics(ch_root)
+            proto_topics = self._publish_topics_for_channel(name)
+            gw_decimal = int(gw[1:], 16) if gw.startswith("!") else None
+            channels[name] = {
+                "gateway_id": gw,
+                "sender_id": self._last_uplink_sender_id.get(name, ""),
+                "channel_id_envelope": self._last_uplink_channel_id.get(name, name),
+                "channel_index": idx,
+                "last_uplink_topic": self._last_uplink_topic_by_channel.get(name, ""),
+                "last_uplink_root": self._last_uplink_root_by_channel.get(name, ""),
+                "uplink_encrypted": self._last_uplink_was_encrypted.get(name),
+                "has_envelope_template": name in self._last_uplink_envelope_bytes,
+                "json_sendtext_topics": json_topics,
+                "protobuf_downlink_topics": proto_topics,
+                "json_sendtext_from_decimal": gw_decimal,
+            }
+        return {
+            "virtual_node": self.node_name,
+            "config_root_topic": self._config.root_topic,
+            "config_gateway_id": self._config.gateway_id,
+            "json_sendtext_root": self._json_sendtext_root(),
+            "inferred_mqtt_root": self._inferred_mqtt_root,
+            "uplink_mqtt_encrypted": self._uplink_mqtt_encrypted,
+            "channels": channels,
+            "mqtt_channel_required": (
+                "Sur la gateway WiFi : canal radio nommé « mqtt » avec downlink ON "
+                "+ Module MQTT → JSON enabled ON. Sans ce canal, le JSON sendtext "
+                "est ignoré par le firmware (warn série : channel not called mqtt)."
+            ),
+            "hint": (
+                "Downlink identique sur tous les canaux actifs : JSON sendtext (canal radio "
+                "« mqtt » slot 6 sur la gateway) + protobuf decoded. Les index 0–7 MeshQTT "
+                "doivent correspondre aux slots de la gateway. Confirmation mesh : uplink "
+                "JSON sur …/json/{canal}/!gateway."
+            ),
+        }
 
     def get_rx_stats(self) -> dict[str, Any]:
         with self._lock:

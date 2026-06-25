@@ -85,8 +85,9 @@ Laisser la valeur par défaut côté radio si elle propose déjà `msh/EU_868`. 
 
 Exemples de topics :
 
-- Abonnement : `msh/EU_868/Fr_Balise/#`
-- Publication : `msh/EU_868/Fr_Balise/!a1b2c3d4`
+- Abonnement : `msh/EU_868/2/json/#` et `msh/EU_868/2/e/#`
+- Downlink broadcast : `msh/EU_868/2/json/mqtt` (JSON sendtext) + `msh/EU_868/2/e/{canal}/!gateway`
+- Downlink direct (DM) : JSON sendtext avec `to` (PKI côté mesh, topic uplink `…/2/json/PKI/!gateway`)
 
 > Root topic **`msh/EU_868`** sans slash final. Avec un `/` en trop (`msh/EU_868/`), le firmware produit `msh/EU_868//2/e/…` (**double slash**) — topic MQTT différent de `msh/EU_868/2/e/…`. Voir [depannage.md](depannage.md#souci-de--à-la-place-de--dans-les-topics).
 
@@ -126,11 +127,16 @@ sequenceDiagram
 
     U->>W: Saisie message + Envoyer
     W->>F: POST /api/send
-    F->>M: Publish protobuf
-    M->>R: Topic msh/EU_868/Canal/!node
+    alt Broadcast (groupe)
+        F->>M: JSON sendtext + protobuf
+        M->>R: …/2/json/mqtt + …/2/e/{canal}/!gateway
+    else Direct (DM)
+        F->>M: JSON sendtext (to + hopLimit)
+        M->>R: …/2/json/mqtt
+    end
     R->>L: Émission LoRa
     L->>R: Réponse mesh
-    R->>M: Publish
+    R->>M: Publish uplink
     M->>F: on_message
     F->>W: WebSocket /ws
     W->>U: Affichage fil
@@ -177,11 +183,13 @@ Détails : [docs/origines.md](docs/origines.md)
 | Domaine | Description |
 |---------|-------------|
 | **MQTT** | Broker local ou distant, root topic Gaulix `msh/EU_868`, multi-canaux |
-| **Messages** | Fil WebSocket, déchiffrement PSK |
+| **Messages** | Fil WebSocket, déchiffrement PSK, uplink JSON et protobuf |
+| **Downlink** | Broadcast : JSON sendtext + protobuf sur **tous les canaux** ; DM : JSON sendtext PKI uniquement |
 | **Nœuds** | Liste des nœuds visibles sur le mesh |
 | **Canaux** | 8 slots, rôles PRINCIPAL / SECONDAIRE / DESACTIVE |
 | **Prédéfinis** | Pompier, Secours, Crise… → `data/presets.json` |
 | **Carte** | Leaflet sur `/map` (fond OpenStreetMap) |
+| **Clavier** | Groupe (canal au choix) et **Direct** (canal 0, PKI) |
 
 ---
 
@@ -221,11 +229,14 @@ docker compose up -d
 ```
   [ ] Mosquitto actif     →  Pi 192.168.1.66:1883 (ou docker local)
   [ ] MQTT configuré      →  192.168.1.66:1883 + root topic Gaulix : msh/EU_868
-  [ ] Canaux Meshtastic   →  noms + clés PSK alignés avec la radio
+  [ ] Canaux Meshtastic   →  noms + clés PSK alignés avec la radio (index 0–7)
   [ ] Connecter           →  bouton en haut à droite
-  [ ] Radio gateway       →  module MQTT vers 192.168.1.66
+  [ ] Radio gateway       →  module MQTT + canal radio « mqtt » (slot 6) downlink ON
+  [ ] Downlink canaux     →  downlink ON sur chaque canal utilisé (Fr_Balise, D_Ligerien…)
   [ ] Nœuds visibles      →  colonne de droite
 ```
+
+Downlink mesh : [docs/mqtt-gateway.md](docs/mqtt-gateway.md#downlink-mesh--json-sendtext-recommandé-broker-privé) · Diagnostic : `GET /api/mqtt/downlink-debug`
 
 ---
 
