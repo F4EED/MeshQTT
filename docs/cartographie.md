@@ -38,11 +38,10 @@ La carte lit le réglage au chargement (`localStorage`) et se synchronise si vou
 |-----------|------|
 | `map.html`, `map.js`, `map.css` | **Local** (servis par MeshQTT) |
 | `leaflet/` (JS + CSS) | **Local** (`app/static/leaflet/`) |
-| Tuiles fond de carte (`OSM/`, zoom 6–10) | **Local** — dans le dépôt Git (clone = tuiles prêtes, pas de retéléchargement) |
-| Tuiles OSM en ligne (actuel sur `/map`) | **En ligne** (tile.openstreetmap.org) — tant que la carte n’utilise pas `OSM/` |
+| Tuiles fond de carte (OpenStreetMap) | **En ligne** |
 | Données signalements Inforoute | API locale → proxy Internet (si couche activée) |
 
-Sans Internet : les marqueurs Meshtastic et la carte Leaflet fonctionnent ; le **fond** en ligne disparaît tant que les tuiles locales `OSM/` ne sont pas branchées dans `map.js`.
+Sans Internet : la carte s’affiche mais **sans fond** ; les marqueurs Meshtastic restent visibles si déjà chargés.
 
 ## Affichage (couche Inforoute)
 
@@ -64,12 +63,11 @@ app/static/map.html
 app/static/map.js
 app/static/map.css
 app/static/leaflet/     # bibliothèque embarquée
-OSM/                    # tuiles offline France (zoom 6–10, versionnées — voir OSM/README.md)
 ```
 
 Route FastAPI : `GET /map`
 
 ## Évolutions prévues
 
-- Brancher les tuiles **`OSM/`** dans `map.js` (fond offline sans Internet)
+- Tuiles fond de carte **offline** (MBTiles ou cache local)
 - Tracés polylignes pour déviations (barreaux Inforoute)
