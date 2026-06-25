@@ -15,7 +15,7 @@ MeshQTT/
 │   ├── constants.py      # Limite 200 octets UTF-8
 │   └── static/           # Frontend SPA-like
 ├── data/settings.json    # Config persistée
-├── docker/               # Mosquitto
+├── scripts/              # Diagnostic Pi / MQTT
 ├── docs/                 # Documentation
 └── requirements.txt
 ```

@@ -20,45 +20,36 @@ Même cause : backend sans champs `point_xy` / `point_latlng`. Redémarrer uvico
 
 ## Connexion MQTT échoue
 
-1. **Un seul Mosquitto** doit écouter sur le port **1883** (éviter plusieurs conteneurs Docker en parallèle).
-2. Broker MeshQTT recommandé :
+1. **Mosquitto sur le Pi** doit écouter sur le port **1883** (voir [pi-mosquitto.md](pi-mosquitto.md)).
+2. Vérification :
 
    ```powershell
-   cd C:\MeshQTT
-   docker compose up -d
-   docker ps --filter name=meshqtt-mosquitto
-   netstat -ano | findstr ":1883"
+   curl http://127.0.0.1:8080/api/mqtt/health
    ```
 
-3. Diagnostic API : [http://127.0.0.1:8080/api/mqtt/health](http://127.0.0.1:8080/api/mqtt/health) → `"reachable": true`
-4. Broker = `127.0.0.1:1883` dans MeshQTT
-5. Root topic cohérent avec vos gateways
-6. Au moins **un canal activé** avec un nom
+   → `"reachable": true` si le PC atteint le Pi sur le port configuré.
 
-### Plusieurs Mosquitto Docker (conflit fréquent)
-
-Si vous aviez plusieurs conteneurs (`mosquitto-local`, `MosquittoTest`, etc.), ne garder **qu'un seul** exposant `1883` :
-
-```powershell
-docker ps --format "table {{.Names}}\t{{.Ports}}"
-docker stop mosquitto-local Mosquitto_simple MosquittoTest   # exemples
-cd C:\MeshQTT
-docker compose up -d
-```
-
-Le conteneur attendu pour MeshQTT : **`meshqtt-mosquitto`** (`0.0.0.0:1883->1883/tcp`).
-Un conteneur Mosquitto **sans** mapping de port (`Ports` vide) n'est pas joignable depuis MeshQTT sur le PC.
+3. Broker = **`192.168.1.66:1883`** dans MeshQTT (pas `127.0.0.1` — le broker n’est pas sur le PC).
+4. Root topic cohérent avec vos gateways : **`msh/EU_868`**
+5. Au moins **un canal activé** avec un nom
+6. PC et Pi sur le **même réseau LAN**
 
 ## Messages visibles sur Mosquitto mais pas dans MeshQTT
 
 1. **MeshQTT connecté ?** La barre de statut doit afficher « Connecté » (connexion auto au démarrage si des canaux sont actifs). Sinon : bouton **Connecter**.
 
-2. **Même broker ?** Sur Windows, `localhost` peut pointer vers `::1` (WSL / autre Mosquitto) alors que MeshQTT utilise `127.0.0.1` (Docker `meshqtt-mosquitto`). Configurez le **même** hôte partout : `127.0.0.1` ou l’IP LAN du PC (`192.168.x.x`). Diagnostic : [http://127.0.0.1:8080/api/mqtt/health](http://127.0.0.1:8080/api/mqtt/health)
+2. **Même broker ?** MeshQTT, MQTT Explorer et la radio doivent pointer vers la **même IP** (ex. `192.168.1.66`). Diagnostic : [http://127.0.0.1:8080/api/mqtt/health](http://127.0.0.1:8080/api/mqtt/health)
 
-3. Vérifier le **topic** avec `mosquitto_sub` **sur le broker MeshQTT** :
+3. Vérifier le **topic** avec `mosquitto_sub` **sur le Pi** (SSH) :
+
+   ```bash
+   mosquitto_sub -h localhost -t "msh/EU_868/#" -v
+   ```
+
+   Depuis le PC (si `mosquitto-clients` installé) :
 
    ```powershell
-   docker exec -it meshqtt-mosquitto mosquitto_sub -h localhost -t "msh/EU_868/#" -v
+   mosquitto_sub -h 192.168.1.66 -t "msh/EU_868/#" -v
    ```
 
 4. Topic attendu avec firmware Meshtastic : `msh/EU_868/2/json/{canal}/!node` ou `…/2/e/…` — le **`/2/`** est normal (ajouté par la radio).
@@ -69,7 +60,7 @@ Un conteneur Mosquitto **sans** mapping de port (`Ports` vide) n'est pas joignab
 
 7. Redémarrer uvicorn après mise à jour du backend. La reconnexion MQTT est automatique au démarrage du serveur.
 
-8. **Diagnostic MeshQTT** : [http://127.0.0.1:8080/api/status](http://127.0.0.1:8080/api/status) affiche `rx_count` et `last_topic`. Si `rx_count` reste à **0** alors que MQTT Explorer voit des messages, ce n’est **pas le même broker** (souvent `localhost` ≠ `127.0.0.1` sous Windows). Dans MQTT Explorer, connectez-vous à la **même IP** que dans les paramètres MeshQTT.
+8. **Diagnostic MeshQTT** : [http://127.0.0.1:8080/api/status](http://127.0.0.1:8080/api/status) affiche `rx_count` et `last_topic`. Si `rx_count` reste à **0** alors que MQTT Explorer voit des messages, ce n’est **pas le même broker**. Dans MQTT Explorer, connectez-vous à la **même IP** que dans les paramètres MeshQTT (ex. `192.168.1.66`).
 
 ## Souci de `//` à la place de `/` dans les topics
 
@@ -187,11 +178,12 @@ Rechargement forcé : **Ctrl+F5** (cache `app.js` / `style.css`).
 ## Redémarrage complet type
 
 ```powershell
-docker compose restart
 Stop-Process -Id <pid_uvicorn> -Force
 cd C:\MeshQTT
 .\.venv\Scripts\uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
+
+Sur le Pi (Mosquitto) : `sudo systemctl restart mosquitto` (SSH).
 
 ## Logs utiles
 

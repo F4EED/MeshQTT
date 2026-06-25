@@ -1,35 +1,34 @@
 # Connexion d’un nœud Meshtastic (gateway MQTT)
 
-Guide pour relier une **radio Meshtastic** (gateway mesh ↔ MQTT) au broker Mosquitto local de MeshQTT.
+Guide pour relier une **radio Meshtastic** (gateway mesh ↔ MQTT) au broker Mosquitto sur le **Raspberry Pi**.
 
 ## Architecture
 
 ```
 Radio Meshtastic  ←→  mesh LoRa  ←→  autres nœuds
        ↕ MQTT (LAN)
-   Mosquitto (PC, port 1883)
+   Mosquitto (Pi, ex. 192.168.1.66:1883)
        ↕ MQTT
-   MeshQTT (navigateur, nœud virtuel sans radio)
+   MeshQTT (PC, navigateur — nœud virtuel sans radio)
 ```
 
 MeshQTT ne parle pas en LoRa : il simule un nœud via MQTT. Une **gateway** (nœud avec module MQTT activé) fait le pont entre le mesh radio et le broker.
 
-> **Broker sur Raspberry Pi** : voir [pi-mosquitto.md](pi-mosquitto.md) (ex. `192.168.1.66`). La radio pointe vers l’IP du Pi ; MeshQTT sur le PC utilise la **même** adresse, pas `127.0.0.1`.
+> Voir [pi-mosquitto.md](pi-mosquitto.md) pour l’installation du broker sur le Pi. La radio et MeshQTT utilisent la **même IP** (`192.168.1.66`), pas `127.0.0.1`.
 
-## Broker Mosquitto sur cette machine
+## Broker Mosquitto (Raspberry Pi)
 
 | Paramètre | Valeur |
 |-----------|--------|
-| Image Docker | `eclipse-mosquitto:2` |
-| Port | **1883** (sans TLS en local) |
+| Hôte | IP LAN du Pi (ex. **`192.168.1.66`**) |
+| Port | **1883** (sans TLS) |
 | Authentification | **Aucune** (`allow_anonymous true`) |
-| Config | `docker/mosquitto/mosquitto.conf` |
+| Installation | `scripts\pi_mosquitto_remote_setup.py` — voir [pi-mosquitto.md](pi-mosquitto.md) |
 
-Démarrage :
+Vérifier depuis le PC :
 
 ```powershell
-docker compose up -d
-docker ps
+curl http://127.0.0.1:8080/api/mqtt/health
 ```
 
 ## Config sur le nœud Meshtastic (Module MQTT)
@@ -43,7 +42,7 @@ Dans l’application Meshtastic ou via CLI : **Module config → MQTT**.
 | **Port** | `1883` |
 | **Utilisateur / mot de passe** | Laisser **vide** |
 | **Root topic** | Identique à MeshQTT : **`msh/EU_868`** (réseau Gaulix, crossband) |
-| **TLS / chiffrement MQTT** (connexion au broker) | **Désactivé** pour Mosquitto local sans certificat (Pi ou Docker). Si activé avec le port 1883, le test Android expire souvent après **5000 ms**. |
+| **TLS / chiffrement MQTT** (connexion au broker) | **Désactivé** (port 1883 sans certificat sur le Pi). Si activé avec le port 1883, le test Android expire souvent après **5000 ms**. |
 
 > **Important** : ne pas mettre `127.0.0.1` sur la radio — « localhost » désigne la radio elle-même, pas votre PC.
 
@@ -186,13 +185,13 @@ Les canaux configurés dans MeshQTT (**Réglages Meshtastic**) doivent correspon
 
 ## Réseau et firewall
 
-1. La radio (Wi‑Fi ou Ethernet) et le PC doivent être sur le **même LAN**.
-2. **Firewall Windows** : autoriser les connexions entrantes sur le port **1883** si la gateway ne se connecte pas.
-3. Vérifier que Mosquitto écoute : `netstat -ano | findstr ":1883"`.
+1. La radio (Wi‑Fi ou Ethernet) et le PC MeshQTT doivent être sur le **même LAN** que le Pi.
+2. **Firewall** : le Pi doit accepter les connexions MQTT sur **1883** depuis le LAN.
+3. Vérifier que Mosquitto écoute sur le Pi : `sudo ss -tlnp | grep 1883` (SSH).
 
 ## Vérification
 
-1. `docker ps` — conteneur Mosquitto actif.
+1. Mosquitto actif sur le Pi — voir [pi-mosquitto.md](pi-mosquitto.md).
 2. Configurer MQTT sur le nœud Meshtastic → sauvegarder (redémarrer la radio si besoin).
 3. MeshQTT → **Connecter**.
 4. Les nœuds du mesh apparaissent dans la colonne de droite ; les messages circulent dans les deux sens.
@@ -213,5 +212,5 @@ Voir [depannage.md](depannage.md) pour le détail.
 ## Voir aussi
 
 - [configuration.md](configuration.md) — paramètres MeshQTT
-- [installation.md](installation.md) — Docker et premier démarrage
+- [installation.md](installation.md) — installation et premier démarrage
 - [architecture.md](architecture.md) — protocole MQTT / protobuf

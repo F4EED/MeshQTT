@@ -390,8 +390,8 @@ class MeshtasticMqttClient:
             hint = ""
             if self._config.broker in ("127.0.0.1", "localhost", "::1") and self._config.port == 1883:
                 hint = (
-                    " — vérifiez qu'un seul Mosquitto écoute sur le port 1883 "
-                    "(docker compose up -d dans MeshQTT → conteneur meshqtt-mosquitto)"
+                    " — le broker Mosquitto est sur le Pi (ex. 192.168.1.66:1883), "
+                    "voir docs/pi-mosquitto.md"
                 )
             self._emit({"type": "error", "message": f"Connexion MQTT impossible : {exc}{hint}"})
             return

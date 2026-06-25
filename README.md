@@ -198,7 +198,7 @@ Détails : [docs/origines.md](docs/origines.md)
 ```mermaid
 flowchart LR
     A["1. git clone"] --> B["2. venv + pip"]
-    B --> C["3. docker compose up"]
+    B --> C["3. Pi Mosquitto OK"]
     C --> D["4. uvicorn :8080"]
     D --> E["5. Config MQTT"]
     E --> F["6. Connecter"]
@@ -207,7 +207,7 @@ flowchart LR
 
 ### Prérequis
 
-- Python **3.11+** · **Docker** · Navigateur moderne
+- Python **3.11+** · **Raspberry Pi** (Mosquitto LAN) · Navigateur moderne
 
 ### Installation
 
@@ -218,7 +218,6 @@ cd MeshQTT
 python -m venv .venv
 .\.venv\Scripts\pip install -r requirements.txt
 
-docker compose up -d
 .\.venv\Scripts\uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
@@ -227,7 +226,7 @@ docker compose up -d
 ### Checklist premier usage
 
 ```
-  [ ] Mosquitto actif     →  Pi 192.168.1.66:1883 (ou docker local)
+  [ ] Mosquitto actif     →  Pi 192.168.1.66:1883
   [ ] MQTT configuré      →  192.168.1.66:1883 + root topic Gaulix : msh/EU_868
   [ ] Canaux Meshtastic   →  noms + clés PSK alignés avec la radio (index 0–7)
   [ ] Connecter           →  bouton en haut à droite
@@ -256,7 +255,6 @@ Downlink mesh : [docs/mqtt-gateway.md](docs/mqtt-gateway.md#downlink-mesh--json-
 |---------|------|------------|
 | `data/settings.json` | MQTT, canaux, identité | ❌ (gitignore — clés PSK) |
 | `data/presets.json` | Messages prédéfinis | ✅ |
-| `docker/mosquitto/` | Broker local | ✅ |
 
 Documentation : [docs/configuration.md](docs/configuration.md)
 
@@ -279,7 +277,7 @@ Documentation : [docs/configuration.md](docs/configuration.md)
                     └────────┬─────────┘
                              │ MQTT :1883
                     ┌────────▼─────────┐
-                    │ Mosquitto Docker │
+                    │ Mosquitto (Pi)   │
                     └──────────────────┘
 ```
 

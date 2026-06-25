@@ -4,7 +4,7 @@
 
 - **Windows 10/11** (ou Linux/macOS avec adaptations des commandes)
 - **Python 3.11+** (testé avec 3.14)
-- **Docker Desktop** (pour Mosquitto local, recommandé)
+- **Raspberry Pi** avec Mosquitto sur le LAN (voir [pi-mosquitto.md](pi-mosquitto.md), ex. `192.168.1.66:1883`)
 - Navigateur moderne (Chrome, Firefox, Edge)
 
 ## Cloner ou copier le projet
@@ -22,28 +22,30 @@ python -m venv .venv
 
 Dépendances principales : FastAPI, uvicorn, paho-mqtt, meshtastic (protobuf), cryptography.
 
-## Broker MQTT local (Docker)
+## Broker MQTT (Raspberry Pi)
 
-**Un seul** broker Mosquitto doit tourner sur le port **1883** :
+Le broker **Mosquitto** tourne sur le **Pi**, pas sur le PC MeshQTT.
+
+| Paramètre | Valeur type |
+|-----------|-------------|
+| Hôte | `192.168.1.66` (IP LAN du Pi) |
+| Port | **1883** |
+| Root topic | **`msh/EU_868`** |
+
+Installation ou audit du Pi :
 
 ```powershell
-docker compose up -d
+cd C:\MeshQTT
+.\.venv\Scripts\python.exe scripts\pi_mosquitto_remote_setup.py
 ```
 
-- Conteneur : **`meshqtt-mosquitto`**
-- Image : `eclipse-mosquitto:2`
-- Port : **1883** (`0.0.0.0:1883->1883/tcp`)
-- Config : `docker/mosquitto/mosquitto.conf`
-
-Si d'autres conteneurs Mosquitto existent déjà sur la machine, les arrêter avant (voir [depannage.md](depannage.md)).
-
-Vérifier :
+Vérifier depuis le PC :
 
 ```powershell
-docker ps --filter name=meshqtt-mosquitto
-netstat -ano | findstr ":1883"
 curl http://127.0.0.1:8080/api/mqtt/health
 ```
+
+(`reachable: true` si le Pi répond sur le port 1883 — broker configuré dans `data/settings.json`.)
 
 ## Lancer MeshQTT
 
@@ -65,7 +67,7 @@ Laisser la fenêtre PowerShell ouverte, ou utiliser un gestionnaire de processus
 3. Aller dans **Meshtastic** → canaux, nom court, ID nœud
 4. Cliquer **Connecter**
 
-Pour brancher une **radio Meshtastic** (gateway MQTT) sur le broker local : [mqtt-gateway.md](mqtt-gateway.md).
+Pour brancher une **radio Meshtastic** (gateway MQTT) sur le broker du Pi : [mqtt-gateway.md](mqtt-gateway.md).
 
 Pour le **downlink mesh** (messages vers les nœuds LoRa) : canal radio **`mqtt`** (slot 6) + downlink ON sur chaque canal utilisé — voir [mqtt-gateway.md#downlink-mesh--json-sendtext-recommandé-broker-privé](mqtt-gateway.md#downlink-mesh--json-sendtext-recommandé-broker-privé).
 

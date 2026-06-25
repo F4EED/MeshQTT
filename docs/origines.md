@@ -15,7 +15,7 @@ Nous sommes partis de ce projet pour construire une interface **navigateur** (Fa
 - Interface web au lieu de Tkinter (`mqtt-connect.py`)
 - Messages prédéfinis, clavier groupe/direct, Info Routes 42
 - Envoi de waypoints Meshtastic depuis les signalements routiers
-- Broker MQTT local (Docker Mosquitto)
+- Broker MQTT sur Raspberry Pi (Mosquitto LAN)
 
 Le cœur du concept — **pont MQTT protobuf Meshtastic sans nœud radio** — reprend l’approche de Connect.
 

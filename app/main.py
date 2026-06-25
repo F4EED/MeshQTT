@@ -231,8 +231,8 @@ async def api_mqtt_health():
                 resolved = socket.getaddrinfo(broker, port, type=socket.SOCK_STREAM)
                 if resolved and resolved[0][4][0] == "::1":
                     hint = (
-                        "Sur Windows, « localhost » peut résoudre en ::1 (autre Mosquitto que Docker). "
-                        "Utilisez 127.0.0.1 ou l'IP LAN du PC (ex. 192.168.x.x)."
+                        "Sur Windows, « localhost » peut résoudre en ::1. "
+                        "Utilisez l'IP LAN du Pi (ex. 192.168.1.66), pas localhost."
                     )
             except OSError:
                 pass
@@ -249,8 +249,8 @@ async def api_mqtt_health():
         except OSError as exc:
             if hint is None and broker in ("127.0.0.1", "localhost", "::1") and port == 1883:
                 hint = (
-                    "Un seul Mosquitto doit écouter sur 1883. "
-                    "Dans MeshQTT : docker compose up -d (conteneur meshqtt-mosquitto)."
+                    "Le broker est sur le Pi (ex. 192.168.1.66:1883), pas sur ce PC. "
+                    "Voir docs/pi-mosquitto.md."
                 )
             return {
                 "ok": False,
